@@ -1,0 +1,354 @@
+---
+title: "Appendix A - ADS506-01-FA22 - Final Project"
+author: "Team 1"
+date: "12/05/2022"
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+header-includes:
+- \usepackage{fvextra}
+- \DefineVerbatimEnvironment{Highlighting}{Verbatim}{breaklines,commandchars=\\\{\}}
+- \usepackage{pdflscape}
+- \newcommand{\blandscape}{\begin{landscape}}
+- \newcommand{\elandscape}{\end{landscape}}
+---
+
+## RMarkdown global setup
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r global.options, include=TRUE}
+knitr::opts_chunk$set(fig.align = 'center')
+```
+
+```{r lib, message=FALSE, warning=FALSE}
+library(AppliedPredictiveModeling)
+library(BioStatR)
+library(car)
+library(caret)
+library(class)
+library(corrplot)
+library(datasets)
+library(e1071)
+library(Hmisc)
+library(mlbench)
+library(gridExtra)
+library(psych)
+library(randomForest)
+library(RANN)
+library(reshape2)
+library(rpart)
+library(rpart.plot)
+library(scales)
+library(tidyverse)
+library(tseries)
+library(zoo)
+
+set.seed(1699)
+```
+
+## Create function to generate boxplots for continuous variables
+```{r}
+# Define function to produce formatted boxplots
+box_comp <- function(xcol = c(), df = NA, rtn_met = TRUE) {
+  sig <- 3
+  metrics_df01 <- data.frame(metric = c("",
+                                        "Total N:",
+                                        "Count",
+                                        "NA Count",
+                                        "Mean",
+                                        "Median",
+                                        "Standard Deviation",
+                                        "Variance",
+                                        "Range",
+                                        "Min",
+                                        "Max",
+                                        "25th Percentile",
+                                        "75th Percentile",
+                                        "Subset w/o Outliers:",
+                                        "Count",
+                                        "%",
+                                        "Outlier %",
+                                        "NA Count",
+                                        "Mean",
+                                        "Median",
+                                        "Standard Deviation",
+                                        "Variance",
+                                        "Range",
+                                        "Min",
+                                        "Max"
+                                        ))
+  for (var in xcol) {
+    df_s1 <- df[, var]
+    df_s1s1 <-data.frame(df_s1)
+    df_s1_fit <- preProcess(df_s1s1,
+                            method = c("center", "scale"))
+    df_s1_trans <- predict(df_s1_fit, df_s1s1)
+    
+
+    # Calculate quartiles
+    var_iqr_lim <- IQR(df_s1) * 1.5
+    var_q1 <- quantile(df_s1, probs = c(.25))
+    var_otlow <- var_q1 - var_iqr_lim
+    var_q3 <- quantile(df_s1, probs = c(.75))
+    var_othigh <- var_q3 + var_iqr_lim
+    
+    # Subset non-outlier data 
+    var_non_otlr_df01 <- subset(df, (abs(df_s1_trans) <= 3))
+    #var_non_otlr_df01 <- subset(df, (df_s1 > var_otlow & df_s1 < var_othigh))
+    df_s2 <- var_non_otlr_df01[, var]
+
+    # Begin calculating measures of centrality & dispersion
+    var_mean <- mean(df_s1)
+    var_non_otlr_df01_trunc_mean <- mean(df_s2)
+    var_med <- median(df_s1)
+    var_non_otlr_df01_trunc_med <- median(df_s2)
+    var_mode <- mode(df_s1)
+    var_non_otlr_df01_trunc_mode <- mode(df_s2)
+    var_stde <- sd(df_s1)
+    var_non_otlr_df01_trunc_stde <- sd(df_s2)
+    var_vari <- var(df_s1)
+    var_non_otlr_df01_trunc_vari <- var(df_s2)
+    var01_min <- min(df[, var])
+    var01_max <- max(df[, var])
+    var01_range <- var01_max - var01_min
+    var02_min <- min(var_non_otlr_df01[, var])
+    var02_max <- max(var_non_otlr_df01[, var])
+    var02_range <- var02_max - var02_min
+    
+    # Configure y-axis min & max to sync graphs
+    plot_min <- min(var01_min, var02_min)
+    plot_max <- max(var01_max, var02_max)
+    nonoutlier_perc <- round((as.numeric(dim(var_non_otlr_df01)[1] / as.numeric(dim(df)[1]))) * 100, 1)
+    measure_val01 <- c(paste0("Variable: ", var),
+                       "",
+                       as.character(dim(df)[1]),
+                       sum(is.na(df_s1)),
+                       round(var_mean, sig),
+                       round(var_med, sig),
+                       round(var_stde, sig),
+                       round(var_vari, sig),
+                       round(var01_range, sig),
+                       round(var01_min, sig),
+                       round(var01_max, sig),
+                       round(var_q1, sig),
+                       round(var_q3, sig),
+                       "",
+                       as.character(dim(var_non_otlr_df01)[1]),
+                       paste0(nonoutlier_perc, "%"),
+                       paste0(round(100 - nonoutlier_perc, 1), "%"),
+                       sum(is.na(df_s2)),
+                       round(var_non_otlr_df01_trunc_mean, sig),
+                       round(var_non_otlr_df01_trunc_med, sig),
+                       round(var_non_otlr_df01_trunc_stde, sig),
+                       round(var_non_otlr_df01_trunc_vari, sig),
+                       round(var02_range, sig),
+                       round(var02_min, sig),
+                       round(var02_max, sig)
+                       )
+    
+    var_name <- paste0("Variable: ", var)
+    metrics_df01[, ncol(metrics_df01) + 1] <- measure_val01
+}
+  boxplot(df)
+  if(rtn_met == TRUE) {
+    return(metrics_df01)
+  }
+}
+```
+
+## Importing Train/Test Datasets
+```{r}
+# Import 4 separate CSV fukes
+owt_df01a <- read.csv("../data/Ocean Water/water_quality_1990_1999_datasd.csv", header = TRUE, sep = ",")
+owt_df01b <- read.csv("../data/Ocean Water/water_quality_2000_2010_datasd.csv", header = TRUE, sep = ",")
+owt_df01c <- read.csv("../data/Ocean Water/water_quality_2011_2019_datasd.csv", header = TRUE, sep = ",")
+owt_df01d <- read.csv("../data/Ocean Water/water_quality_2020_2021_datasd.csv", header = TRUE, sep = ",")
+
+# Merge 4 seperate dataframes into 1
+owt_df01 <- rbind(owt_df01a, owt_df01b, owt_df01c, owt_df01d)
+
+print(head(owt_df01))
+describe(owt_df01)
+
+#write.csv(owt_df01, "../data/Ocean Water/ocean_df01.csv")
+```
+
+```{r}
+# Display aggregations by different features
+owt_df01_gb01 <- owt_df01 %>%
+  group_by(station) %>%
+  summarise(Count = n())
+
+owt_df01_gb02 <- owt_df01 %>%
+  group_by(project) %>%
+  summarise(Count = n())
+
+owt_df01_gb03 <- owt_df01 %>%
+  group_by(date_sample) %>%
+  summarise(Count = n())
+
+owt_df01_gb04 <- owt_df01 %>%
+  group_by(date_sample, parameter) %>%
+  summarise(Total = mean(value))
+
+print(owt_df01_gb01)
+print(owt_df01_gb02)
+print(head(owt_df01_gb03))
+print(head(owt_df01_gb04))
+
+# Display stations with highest and lowest sample n
+print(owt_df01_gb01[owt_df01_gb01$Count == min(owt_df01_gb01$Count), ])
+print(owt_df01_gb01[owt_df01_gb01$Count == max(owt_df01_gb01$Count), ])
+```
+
+```{r}
+print(head(owt_df01_gb04))
+param_lst01 <- c("CHLOROPHYLL",
+                 "DENSITY", 
+                 "DO", 
+                 "ENTERO", 
+                 "FECAL", 
+                 "OG", 
+                 "PH", 
+                 "SALINITY", 
+                 "SUSO", 
+                 "TEMP", 
+                 "TOTAL", 
+                 "XMS")
+
+# Create custom function to cast individual parameters to columns
+param_col <- function(param = NA, df = NA) {
+  param_df <- df[df$parameter == param, ]
+  #print(head(param_df))
+  # Citation: https://www.datasciencemadesimple.com/melting-casting-r/
+  param_df_cast <- dcast(param_df, date_sample~parameter, mean)
+  #print(head(param_df_cast))
+  return(param_df_cast)
+}
+
+# Run custom function on each of the 12 parameters
+owt_df01_gb04_chl <- param_col(param = "CHLOROPHYLL", df = owt_df01_gb04)
+#print(owt_df01_gb04_chl)
+owt_df01_gb04_den <- param_col(param = "DENSITY", df = owt_df01_gb04)
+#print(owt_df01_gb04_den)
+owt_df01_gb04_dox <- param_col(param = "DO", df = owt_df01_gb04)
+#print(owt_df01_gb04_dox)
+owt_df01_gb04_ent <- param_col(param = "ENTERO", df = owt_df01_gb04)
+#print(owt_df01_gb04_ent)
+owt_df01_gb04_fec <- param_col(param = "FECAL", df = owt_df01_gb04)
+#print(owt_df01_gb04_fec)
+owt_df01_gb04_org <- param_col(param = "OG", df = owt_df01_gb04)
+#print(owt_df01_gb04_org)
+owt_df01_gb04_phl <- param_col(param = "PH", df = owt_df01_gb04)
+#print(owt_df01_gb04_phl)
+owt_df01_gb04_sal <- param_col(param = "SALINITY", df = owt_df01_gb04)
+#print(owt_df01_gb04_sal)
+owt_df01_gb04_sus <- param_col(param = "SUSO", df = owt_df01_gb04)
+#print(owt_df01_gb04_sus)
+owt_df01_gb04_tmp <- param_col(param = "TEMP", df = owt_df01_gb04)
+#print(owt_df01_gb04_tmp)
+owt_df01_gb04_tot <- param_col(param = "TOTAL", df = owt_df01_gb04)
+#print(owt_df01_gb04_tot)
+owt_df01_gb04_xms <- param_col(param = "XMS", df = owt_df01_gb04)
+#print(owt_df01_gb04_xms)
+
+# Merge individual casted parameter df's into 1 df
+# Citation: https://www.geeksforgeeks.org/joining-of-dataframes-in-r-programming/
+owt_df01_gb04_mrgd <- merge(x = owt_df01_gb04_chl,
+                            y = owt_df01_gb04_den,
+                            by ="date_sample",
+                            all = TRUE)
+
+owt_df01_gb04_mrgd <- merge(x = owt_df01_gb04_mrgd,
+                            y = owt_df01_gb04_dox,
+                            by ="date_sample",
+                            all = TRUE)
+
+owt_df01_gb04_mrgd <- merge(x = owt_df01_gb04_mrgd,
+                            y = owt_df01_gb04_ent,
+                            by ="date_sample",
+                            all = TRUE)
+
+owt_df01_gb04_mrgd <- merge(x = owt_df01_gb04_mrgd,
+                            y = owt_df01_gb04_fec,
+                            by ="date_sample",
+                            all = TRUE)
+
+owt_df01_gb04_mrgd <- merge(x = owt_df01_gb04_mrgd,
+                            y = owt_df01_gb04_org,
+                            by ="date_sample",
+                            all = TRUE)
+
+owt_df01_gb04_mrgd <- merge(x = owt_df01_gb04_mrgd,
+                            y = owt_df01_gb04_phl,
+                            by ="date_sample",
+                            all = TRUE)
+
+owt_df01_gb04_mrgd <- merge(x = owt_df01_gb04_mrgd,
+                            y = owt_df01_gb04_sal,
+                            by ="date_sample",
+                            all = TRUE)
+
+owt_df01_gb04_mrgd <- merge(x = owt_df01_gb04_mrgd,
+                            y = owt_df01_gb04_sus,
+                            by ="date_sample",
+                            all = TRUE)
+
+owt_df01_gb04_mrgd <- merge(x = owt_df01_gb04_mrgd,
+                            y = owt_df01_gb04_tmp,
+                            by ="date_sample",
+                            all = TRUE)
+
+owt_df01_gb04_mrgd <- merge(x = owt_df01_gb04_mrgd,
+                            y = owt_df01_gb04_tot,
+                            by ="date_sample",
+                            all = TRUE)
+
+owt_df01_gb04_mrgd <- merge(x = owt_df01_gb04_mrgd,
+                            y = owt_df01_gb04_xms,
+                            by ="date_sample",
+                            all = TRUE)
+
+print(owt_df01_gb04_mrgd)
+describe(owt_df01_gb04_mrgd)
+```
+
+## Run function to create comparative boxplots
+```{r, fig.height=10, fig.width=10}
+num_var_lst01 <- c("value")
+
+# Run custom function to ID outliers and generate boxplot
+owt_df03 <- subset(x = owt_df01, select = num_var_lst01)
+owt_df03 <- na.omit(owt_df03)
+print(head(owt_df03))
+box_comp(xcol = num_var_lst01, df = subset(x = owt_df03, select = num_var_lst01), rtn_met = TRUE)
+```
+
+```{r, fig.height=10, fig.width=15}
+
+print(head(owt_df01_gb04))
+print(tail(owt_df01_gb04))
+
+# Viz time series data for ENTERO parameter
+owt_df01_gb04a <- owt_df01_gb04[owt_df01_gb04$parameter == "ENTERO", ]
+# & owt_df01_gb04$station == "A1"
+aps_df01_ts01 <- ts(owt_df01_gb04a$Total, start = c(1990, 1), freq = 184)
+#, start = c(2020, 1), freq = 52
+#print(aps_df01_ts01)
+
+#ship_fore_avg <- tslm(aps_df01_ts01 ~ trend)
+#ship_fore_trnd <- tslm(aps_df01_ts01 ~ trend + I(trend^2))
+
+plot(aps_df01_ts01,
+     xlab = "Time",
+     ylab = "Entero Levels",
+     type = "o",
+     main = "Figure 1. Entero Levels Over Five Years")
+grid()
+
+print(acf(aps_df01_ts01, pl=TRUE, na.action = na.pass))
+```
+
