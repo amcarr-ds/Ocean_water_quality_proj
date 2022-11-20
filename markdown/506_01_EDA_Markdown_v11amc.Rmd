@@ -1,0 +1,675 @@
+---
+title: "Appendix A - ADS506-01-FA22 - Final Project"
+author: "Team 1"
+date: "12/05/2022"
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+header-includes:
+- \usepackage{fvextra}
+- \DefineVerbatimEnvironment{Highlighting}{Verbatim}{breaklines,commandchars=\\\{\}}
+- \usepackage{pdflscape}
+- \newcommand{\blandscape}{\begin{landscape}}
+- \newcommand{\elandscape}{\end{landscape}}
+---
+
+## RMarkdown global setup
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r global.options, include=TRUE}
+knitr::opts_chunk$set(fig.align = 'center')
+```
+
+```{r lib, message=FALSE, warning=FALSE}
+library(AppliedPredictiveModeling)
+library(BioStatR)
+library(car)
+library(caret)
+library(class)
+library(corrplot)
+library(datasets)
+library(e1071)
+library(Hmisc)
+library(lubridate)
+library(mlbench)
+library(gridExtra)
+library(psych)
+library(randomForest)
+library(RANN)
+library(reshape2)
+library(rpart)
+library(rpart.plot)
+library(scales)
+library(tidyverse)
+library(timetk)
+library(tsibble)
+library(tseries)
+library(zoo)
+
+set.seed(1699)
+```
+
+## Create custom function to generate boxplots and descriptive statistics for continuous variables
+```{r, warning=FALSE}
+box_comp <- function(xcol = c(),
+                     df = NA,
+                     rtn_met = TRUE,
+                     grph_title = "All",
+                     box = TRUE) {
+  # Define function to produce formatted boxplots
+  sig <- 3
+  metrics_df01 <- data.frame(metric = c("",
+                                        "Total N:",
+                                        "Count",
+                                        "NA Count",
+                                        "Mean",
+                                        "Median",
+                                        "Standard Deviation",
+                                        "Variance",
+                                        "Range",
+                                        "Min",
+                                        "Max",
+                                        "25th Percentile",
+                                        "75th Percentile",
+                                        "Subset w/o Outliers:",
+                                        "Count",
+                                        "%",
+                                        "Outlier %",
+                                        "NA Count",
+                                        "Mean",
+                                        "Median",
+                                        "Standard Deviation",
+                                        "Variance",
+                                        "Range",
+                                        "Min",
+                                        "Max"
+                                        ))
+  for(var in xcol) {
+    df_s1 <- df[, var]
+    df_s1s1 <-data.frame(df_s1)
+    df_s1_fit <- preProcess(df_s1s1,
+                            method = c("center", "scale"))
+    df_s1_trans <- predict(df_s1_fit, df_s1s1)
+
+    # Calculate quartiles
+    var_iqr_lim <- IQR(df_s1) * 1.5
+    var_q1 <- quantile(df_s1, probs = c(.25))
+    var_otlow <- var_q1 - var_iqr_lim
+    var_q3 <- quantile(df_s1, probs = c(.75))
+    var_othigh <- var_q3 + var_iqr_lim
+    
+    # Subset non-outlier data 
+    var_non_otlr_df01 <- subset(df, (abs(df_s1_trans) <= 3))
+    #var_non_otlr_df01 <- subset(df, (df_s1 > var_otlow & df_s1 < var_othigh))
+    df_s2 <- var_non_otlr_df01[, var]
+
+    # Begin calculating measures of centrality & dispersion
+    var_mean <- mean(df_s1, na.remove = TRUE)
+    var_non_otlr_df01_trunc_mean <- mean(df_s2, na.remove = TRUE)
+    var_med <- median(df_s1)
+    var_non_otlr_df01_trunc_med <- median(df_s2)
+    var_mode <- mode(df_s1)
+    var_non_otlr_df01_trunc_mode <- mode(df_s2)
+    var_stde <- sd(df_s1)
+    var_non_otlr_df01_trunc_stde <- sd(df_s2)
+    var_vari <- var(df_s1)
+    var_non_otlr_df01_trunc_vari <- var(df_s2)
+    var01_min <- min(df[, var])
+    var01_max <- max(df[, var])
+    var01_range <- var01_max - var01_min
+    var02_min <- min(var_non_otlr_df01[, var])
+    var02_max <- max(var_non_otlr_df01[, var])
+    var02_range <- var02_max - var02_min
+    
+    # Configure y-axis min & max to sync graphs
+    plot_min <- min(var01_min, var02_min)
+    plot_max <- max(var01_max, var02_max)
+    nonoutlier_perc <- round((as.numeric(dim(var_non_otlr_df01)[1] / as.numeric(dim(df)[1]))) * 100, 1)
+    
+    # Fill in metrics table
+    measure_val01 <- c(paste0("Variable: ", var),
+                       "",
+                       as.character(dim(df)[1]),
+                       sum(is.na(df_s1)),
+                       round(var_mean, sig),
+                       round(var_med, sig),
+                       round(var_stde, sig),
+                       round(var_vari, sig),
+                       round(var01_range, sig),
+                       round(var01_min, sig),
+                       round(var01_max, sig),
+                       round(var_q1, sig),
+                       round(var_q3, sig),
+                       "",
+                       as.character(dim(var_non_otlr_df01)[1]),
+                       paste0(nonoutlier_perc, "%"),
+                       paste0(round(100 - nonoutlier_perc, 1), "%"),
+                       sum(is.na(df_s2)),
+                       round(var_non_otlr_df01_trunc_mean, sig),
+                       round(var_non_otlr_df01_trunc_med, sig),
+                       round(var_non_otlr_df01_trunc_stde, sig),
+                       round(var_non_otlr_df01_trunc_vari, sig),
+                       round(var02_range, sig),
+                       round(var02_min, sig),
+                       round(var02_max, sig)
+                       )
+    
+    var_name <- paste0("Variable: ", var)
+    metrics_df01[, ncol(metrics_df01) + 1] <- measure_val01
+}
+  # Format boxplot titles based on number of plots
+  if(box == TRUE) {
+    if(length(xcol == 1)) {
+      boxplot(df,
+              ylab = "Parameter Values",
+              main = paste0("Boxplot for ", xcol, " (", grph_title, ")"))
+    }
+    else {
+      boxplot(df,
+              ylab = "Parameter Values",
+              main = paste0("Boxplot for Multiple Parameters", " (", grph_title, ")"))
+      
+    }
+  }
+  # Return and print metrics table(s)
+  if(rtn_met == TRUE) {
+    print(metrics_df01)
+    return(metrics_df01)
+  }
+}
+```
+
+## Import and merge Datasets
+```{r, warning=FALSE}
+# Import 4 separate CSV files
+owt_df01a <- read.csv("../data/Ocean Water/water_quality_1990_1999_datasd.csv", header = TRUE, sep = ",")
+owt_df01b <- read.csv("../data/Ocean Water/water_quality_2000_2010_datasd.csv", header = TRUE, sep = ",")
+owt_df01c <- read.csv("../data/Ocean Water/water_quality_2011_2019_datasd.csv", header = TRUE, sep = ",")
+owt_df01d <- read.csv("../data/Ocean Water/water_quality_2020_2021_datasd.csv", header = TRUE, sep = ",")
+
+# Merge 4 seperate dataframes into 1
+owt_df01 <- rbind(owt_df01a, owt_df01b, owt_df01c, owt_df01d)
+
+print(head(owt_df01))
+describe(owt_df01)
+
+#write.csv(owt_df01, "C:/Users/acarr/Sync/Programming/Python and R/ADS Markdown Files/ADS-506 Markdown/Final Project/data/Ocean Water/ocean_df01.csv")
+```
+
+## Factorize and format column types; print NA counts
+```{r}
+# List of parameter values
+param_lst01 <- c("CHLOROPHYLL",
+                 "DENSITY", 
+                 "DO", 
+                 "ENTERO", 
+                 "FECAL", 
+                 "OG", 
+                 "PH", 
+                 "SALINITY", 
+                 "SUSO", 
+                 "TEMP", 
+                 "TOTAL", 
+                 "XMS")
+
+# List of col names
+col_lst01 <- c("sample",
+               "station",
+               "date_sample",
+               "time",
+               "project",
+               "parameter",
+               "qualifier",
+               "units")
+
+# Citation: https://www.geeksforgeeks.org/find-columns-and-rows-with-na-in-r-dataframe/
+owt_df02 <- owt_df01
+for(c in col_lst01) {
+  owt_df02[, c] <- as.factor(owt_df02[, c] )
+}
+
+# Generate NA summary tables
+# Citation: https://www.geeksforgeeks.org/replace-character-value-with-na-in-r/
+owt_df02[owt_df02 == ""] <- NA
+print(head(owt_df02))
+owt_df02_na <- sapply(owt_df02, function(x) sum(is.na(x)))
+owt_df02_notna <- sapply(owt_df02, function(x) sum(!is.na(x)))
+owt_df02_tbl01 <- rbind(owt_df02_notna, owt_df02_na)
+owt_df02_tbl02 <- rbind(owt_df02_tbl01, round(prop.table(owt_df02_tbl01, margin = 2), 4))
+print("All parameters")
+print(owt_df02_tbl02)
+
+owt_df02a <- owt_df02[which(is.na(owt_df02), arr.ind=TRUE), ]
+#print(head(owt_df02a))
+
+for(p in param_lst01) {
+  df = owt_df02[owt_df02$parameter == p, ]
+  print(head(df[which(is.na(df$value), arr.ind=TRUE), ]))
+  df_na <- sapply(df, function(x) sum(is.na(x)))
+  df_notna <- sapply(df, function(x) sum(!is.na(x)))
+  df_tbl01 <- rbind(df_notna, df_na)
+  df_tbl02 <- rbind(df_tbl01, round(prop.table(df_tbl01, margin = 2), 4))
+  rownames(df_tbl02) <- c("Not NA n", "NA n", "Not NA %", "NA %")
+  print(p)
+  print(df_tbl02) # This table w/ null counts and proportions for each feature not displayed for space purposes
+}
+
+# Display value summaries
+# Citation: Dave Hurst
+params <- owt_df02 %>%
+  mutate(unit_def = paste(parameter, qualifier, units)) %>%
+  count(unit_def)
+print(params)
+```
+
+## Bin `depth_m` variable
+```{r, warning=FALSE}
+owt_df02$date_sample <- as.Date(owt_df02$date_sample, "%Y-%m-%d")
+
+# Create bins for depth_m values
+depth_lvls01 <- c("[0,8)",
+                  "[8,33)",
+                  "[33,47)",
+                  "[47,70)",
+                  "[70,90)",
+                  "[90,112)",
+                  "[112,120]",
+                  "Unknown")
+
+# Plot distribution of depth_m values
+#Citation: https://community.rstudio.com/t/ggplot-x-axis-y-axis-ticks-labels-breaks-and-limits/119123/2
+ggplot(owt_df02, aes(x = depth_m)) +
+  geom_histogram(color = "black", bins = 40, aes(y = stat(density))) +
+  geom_density(col = "blue") +
+  labs(title = "Histogram of `depth_m` Feature") +
+  scale_x_continuous(breaks=seq(0,120,1)) +
+  theme(plot.title = element_text(hjust = 0.5, size = 12))
+
+# Create new column with bins
+# Citation: https://www.marsja.se/r-add-column-to-dataframe-based-on-other-columns-conditions-dplyr/
+owt_df02 <- mutate(owt_df02, depth_m_bin = case_when(depth_m < 8 ~ "[0,8)",
+                                                     depth_m < 33 ~ "[8,33)",
+                                                     depth_m < 47 ~ "[33,47)",
+                                                     depth_m < 70 ~ "[47,70)",
+                                                     depth_m < 90 ~ "[70,90)",
+                                                     depth_m < 112 ~ "[90,112)",
+                                                     depth_m >= 112 ~ "[112,120]"))
+
+# Replace NAs with "Unknown"
+# Citation: https://statisticsglobe.com/r-replace-na-with-0/
+owt_df02$depth_m_bin <- replace_na(owt_df02$depth_m_bin, "Unknown")
+
+# Citation: https://www.statology.org/order-bars-ggplot2-bar-chart/
+owt_df02$depth_m_bin_factr = factor(owt_df02$depth_m_bin, levels = depth_lvls01)
+print(head(owt_df02))
+
+# Display transformed bar chart
+ggplot(owt_df02, aes(x = depth_m_bin_factr)) +
+  geom_bar() +
+  labs(title = "Bar of `depth_m_bin` Feature") +
+  theme(plot.title = element_text(hjust = 0.5, size = 12))
+```
+
+## Perform several aggregations on the data for performing EDA at multiple levels
+```{r}
+# Display aggregations by different features
+owt_df02_gb01 <- owt_df02 %>%
+  group_by(station) %>%
+  summarise(Count = n())
+
+print(owt_df02_gb01[owt_df02_gb01$Count == min(owt_df02_gb01$Count), ])
+print(owt_df02_gb01[owt_df02_gb01$Count == max(owt_df02_gb01$Count), ])
+
+owt_df02_gb02 <- owt_df02 %>%
+  group_by(project) %>%
+  summarise(Count = n())
+
+owt_df02_gb03 <- owt_df02 %>%
+  group_by(date_sample) %>%
+  summarise(Count = n())
+
+# Main DF1
+owt_df02_gb04 <- owt_df02 %>%
+  group_by(date_sample, parameter) %>%
+  summarise(Avg = mean(value, na.remove = TRUE))
+
+owt_df02_gb05 <- owt_df02 %>%
+  group_by(parameter) %>%
+  summarise(Count = n())
+
+owt_df02_gb06 <- owt_df02 %>%
+  group_by(depth_m) %>%
+  summarise(Count = n())
+
+# Main DF3
+owt_df02_gb07 <- owt_df02 %>%
+  group_by(date_sample, project, depth_m_bin, parameter) %>%
+  summarise(Avg = mean(value, na.remove = TRUE))
+
+owt_df02_gb08 <- owt_df02 %>%
+  group_by(depth_m_bin) %>%
+  summarise(Count = n())
+
+# Main DF2
+owt_df02_gb09 <- owt_df02 %>%
+  group_by(date_sample, project, parameter) %>%
+  summarise(Avg = mean(value, na.remove = TRUE))
+
+print(owt_df02_gb01)
+print(dim(owt_df02_gb01))
+print(owt_df02_gb02)
+print(dim(owt_df02_gb02))
+print(head(owt_df02_gb03))
+print(dim(owt_df02_gb03))
+print(head(owt_df02_gb04))
+print(dim(owt_df02_gb04))
+print(owt_df02_gb05)
+print(dim(owt_df02_gb05))
+print(owt_df02_gb06)
+print(dim(owt_df02_gb06))
+print(head(owt_df02_gb07))
+print(dim(owt_df02_gb07))
+print(owt_df02_gb08)
+print(dim(owt_df02_gb08))
+print(head(owt_df02_gb09))
+print(dim(owt_df02_gb09))
+```
+
+## Create custom function to df mutation/casting and boxplot display
+```{r, warning=FALSE}
+ts_eda <- function(ts_df = NA,
+                   form_lead = c(),
+                   form_cast = c(),
+                   param_lst = c(),
+                   l1_col = c(),
+                   l1_param = c(),
+                   l2_col = c(),
+                   l2_param = c(),
+                   rtn_met = TRUE,
+                   grph_title = "All",
+                   box = TRUE) {
+  # Define function to dcast, print boxplot, and print desc stats for each parameter
+  dcast_form <- as.formula(paste(paste(form_lead, collapse = "+"), form_cast, sep = "~"))
+  #print(dcast_form)
+  #print(head(ts_df))
+  
+  counter <- 1
+  # Loop to dcast parameters to cols
+  for(p in param_lst) {
+    sym_param <- sym(p)
+    print(sym_param)
+    param_df <- ts_df[ts_df[, form_cast] == p, ]
+    param_df <- param_df %>%
+      drop_na()
+    #print(param_df)
+    
+    # Citation: https://www.datasciencemadesimple.com/melting-casting-r/
+    param_df_cast <- dcast(param_df, dcast_form, mean)
+    #print(param_df_cast)
+    
+    if(counter  == 1) {
+      ts_df_mrgd <- param_df_cast
+    }
+    else {
+      # Merge individual casted parameter df's into 1 df
+      # Citation: https://www.geeksforgeeks.org/joining-of-dataframes-in-r-programming/
+      ts_df_mrgd <- merge(x = ts_df_mrgd,
+                          y = param_df_cast,
+                          by = form_lead,
+                          all = TRUE)
+    }
+    
+    # Run custom function to ID outliers and generate boxplot
+    #ts_df_mrgd01a <- subset(x = ts_df_mrgd, select = num_var_lst01)
+    ts_df_mrgd01a <- na.omit(param_df_cast)
+    #print(head(ts_df_mrgd01a))
+    dfs1 <- subset(x = ts_df_mrgd01a, select = p)
+    dfs1a <- dfs1
+    dfs1a$Groups <- grph_title
+    box_comp(xcol = p,
+             df = dfs1,
+             rtn_met = rtn_met,
+             box = box)
+    #dfs_lst <- list(dfs1)
+    #print(dfs_lst)
+
+    #_________________________________________________________________________
+    # Create subplots based on additional agg layers
+    print(paste0("L2 length = ", length(l2_param)))
+    if(length(l2_param) == 0) {
+      for(l1 in l1_param) {
+        ts_df_mrgd_chl_dmb1 <- ts_df_mrgd01a[(ts_df_mrgd01a[, l1_col] == l1), ]
+
+        # Run custom function to ID outliers and generate boxplot
+        #print(head(ts_df_mrgd_chl_dmb1))
+        # Citation: https://www.geeksforgeeks.org/handling-errors-in-r-programming/
+        dfs2 <- subset(x = ts_df_mrgd_chl_dmb1, select = p)
+        dfs2a <- dfs2
+        try(dfs2a$Groups <- l1)
+        #append(dfs_lst, dfs2)
+        try(box_comp(xcol = p,
+                     df = dfs2,
+                     rtn_met = rtn_met,
+                     grph_title = l1,
+                     box = box),
+            silent = TRUE)
+        dfs1a <- rbind(dfs1a, dfs2a)
+      }
+    }
+    else {
+      for(l1 in l1_param) {
+        for(l2 in l2_param) {
+          ts_df_mrgd_chl_dmb1 <- ts_df_mrgd01a[(ts_df_mrgd01a[, l1_col] == l1) & (ts_df_mrgd01a[, l2_col] == l2), ]
+  
+          # Run custom function to ID outliers and generate boxplot
+          #print(head(ts_df_mrgd_chl_dmb1))
+          # Citation: https://www.geeksforgeeks.org/handling-errors-in-r-programming/
+          dfs3 <- subset(x = ts_df_mrgd_chl_dmb1, select = p)
+          dfs3a <- dfs3
+          try(dfs3a$Groups <- paste0(l1, ": ", l2))
+          #append(dfs_lst, dfs3)
+          try(box_comp(xcol = p,
+                       df = dfs3,
+                       rtn_met = rtn_met,
+                       grph_title = paste0(l1, ": ", l2),
+                       box = box),
+              silent = TRUE)
+          dfs1a <- rbind(dfs1a, dfs3a)
+        }
+      }
+    }
+    #_________________________________________________________________________
+    #print(dim(dfs1a))
+    #print(head(dfs1a))
+    bx_form <- as.formula(paste(p, "Groups", sep = "~"))
+    #print(bx_form)
+    boxplot(bx_form,
+            dfs1a,
+            main = "Boxplot(s)")
+
+    counter <- counter + 1
+  }
+  print(head(ts_df_mrgd, 10))
+  print(describe(ts_df_mrgd))
+  
+  # Display summary of NA count
+  ts_df_na <- sapply(ts_df, function(x) sum(is.na(x)))
+  ts_df_notna <- sapply(ts_df, function(x) sum(!is.na(x)))
+  ts_df_tbl01 <- rbind(ts_df_notna, ts_df_na)
+  ts_df_tbl02 <- rbind(ts_df_tbl01, round(prop.table(ts_df_tbl01, margin = 2), 4))
+  rownames(ts_df_tbl02) <- c("Not NA n", "NA n", "Not NA %", "NA %")
+  print(ts_df_tbl02) # This table w/ null counts and proportions for each feature not displayed for space purposes
+  return(ts_df_mrgd)
+}
+```
+
+## Run custom function on data aggregated by `date_sample` and `parameter`
+```{r}
+param_lst02 <- c("CHLOROPHYLL",
+                 "DENSITY", 
+                 "DO", 
+                 "ENTERO", 
+                 "FECAL", 
+                 "OG", 
+                 "PH", 
+                 "SALINITY", 
+                 "SUSO", 
+                 "TEMP", 
+                 "XMS")
+
+owt_df02_gb04_mrgd = ts_eda(ts_df = owt_df02_gb04,
+                            form_lead = "date_sample",
+                            form_cast = "parameter",
+                            param_lst = param_lst02,
+                            rtn_met = TRUE,
+                            box = FALSE
+                            )
+```
+
+## Run custom function on data aggregated by `date_sample`, `project` and `parameter`
+```{r}
+owt_df02_gb09_mrgd = ts_eda(ts_df = owt_df02_gb09,
+                            form_lead = c("date_sample", "project"),
+                            form_cast = "parameter",
+                            param_lst = param_lst02,
+                            l1_col = c("project"),
+                            l1_param = c("PLOO", "SBOO"),
+                            rtn_met = TRUE,
+                            box = FALSE
+                            )
+```
+
+## Run custom function on data aggregated by `date_sample`, `project`, `depth_m_bin` and `parameter`
+```{r, fig.height=10, fig.width=25, warning=FALSE}
+owt_df02_gb07_mrgd = ts_eda(ts_df = owt_df02_gb07,
+                            form_lead = c("date_sample", "project", "depth_m_bin"),
+                            form_cast = "parameter",
+                            param_lst = param_lst02,
+                            l1_col = c("project"),
+                            l1_param = c("PLOO", "SBOO"),
+                            l2_col = c("depth_m_bin"),
+                            l2_param = depth_lvls01,
+                            rtn_met = FALSE,
+                            box = FALSE
+                            )
+```
+
+## Display new dataframes
+```{r}
+#print(head(owt_df02_gb04_mrgd, 10))
+#print(head(owt_df02_gb09_mrgd, 10))
+#print(head(owt_df02_gb07_mrgd, 10))
+
+owt_df02_gb04_tbbl <- as_tibble(owt_df02_gb04_mrgd, index = date_sample)
+owt_df02_gb09_tbbl <- as_tibble(owt_df02_gb09_mrgd, key = project, index = date_sample)
+owt_df02_gb07_tbbl <- as_tibble(owt_df02_gb07_mrgd, key = c(project, depth_m_bin), index = date_sample)
+
+print(head(owt_df02_gb04_tbbl, 10))
+print(head(owt_df02_gb09_tbbl, 10))
+print(head(owt_df02_gb07_tbbl, 10))
+```
+
+## Convert dataframes to tsibbles
+```{r}
+#_________________________________________________________________________
+owt_df02_gb04_tbbl01 <- owt_df02_gb04_mrgd[c("date_sample", "CHLOROPHYLL")] %>%
+  drop_na() %>%
+  group_by(date_sample) %>%
+  summarise_by_time(.date_var = date_sample,
+                    .by = "week",
+                    .week_start = 1,
+                    CHLOROPHYLL = mean(CHLOROPHYLL, na.remove = TRUE)
+                    )
+
+print(head(owt_df02_gb04_tbbl01, 10))
+print(duplicates(owt_df02_gb04_tbbl01, index = date_sample))
+
+#_________________________________________________________________________
+owt_df02_gb04_tbbl02 <- owt_df02_gb04_mrgd[c("date_sample", "ENTERO")] %>%
+  drop_na() %>%
+  group_by(date_sample) %>%
+  summarise_by_time(.date_var = date_sample,
+                    .by = "week",
+                    .week_start = 1,
+                    ENTERO = mean(ENTERO, na.remove = TRUE)
+                    )
+
+print(head(owt_df02_gb04_tbbl02, 10))
+print(duplicates(owt_df02_gb04_tbbl02, index = date_sample))
+
+owt_df02_gb04_tbb_mrgd <- merge(x = owt_df02_gb04_tbbl01,
+                    y = owt_df02_gb04_tbbl02,
+                    by = "date_sample",
+                    all = TRUE)
+print(head(owt_df02_gb04_tbb_mrgd, 10))
+
+```
+
+{r}
+owt_df02_gb09_tbbl01a <- owt_df02_gb09_tbbl01[1:3]
+print(head(owt_df02_gb09_tbbl01a))
+owt_df02_gb09_tbbl01a %>%
+  group_by_key() %>%
+  index_by(year_week = ~ yearweek(date_sample)) %>% # monthly aggregates
+  summarise(CHLOROPHYLL_avg = mean(CHLOROPHYLL, na.rm = TRUE))
+
+#print(head(owt_df02_gb09_tbbl02, 100))
+
+
+## Plot time series for selected parameters and tsibbles
+```{r}
+#, fig.height=10, fig.width=15
+#print(head(owt_df02_gb04_tbbl01$CHLOROPHYLL))
+#print(tail(owt_df02_gb04_tbbl01$CHLOROPHYLL))
+
+# Viz time series data for ENTERO parameter
+#owt_df02_gb04a <- owt_df02_gb04[owt_df02_gb04$parameter == "ENTERO", ]
+# & owt_df02_gb04$station == "A1"
+#aps_df01_ts01 <- ts(owt_df02_gb04a$Avg, start = c(1990, 1), freq = 184)
+#, start = c(2020, 1), freq = 52
+#print(aps_df01_ts01)
+
+#ship_fore_avg <- tslm(aps_df01_ts01 ~ trend)
+#ship_fore_trnd <- tslm(aps_df01_ts01 ~ trend + I(trend^2))
+
+#plot(owt_df02_gb04_mrgd$ENTERO,
+#     xlab = "Time",
+#     ylab = "ENTERO Levels",
+#     type = "o",
+#     main = "ENTERO Levels Over Time")
+#grid()
+print(acf(owt_df02_gb04_mrgd$ENTERO, pl=TRUE, na.action = na.pass))
+# Citation: https://www.geeksforgeeks.org/time-series-visualization-with-ggplot2-in-r/
+ggplot(owt_df02_gb04_mrgd, aes(x=date_sample, y=ENTERO, group = 1)) +
+  geom_line()
+
+owt_df02_gb09_mrgd01a <- owt_df02_gb09_mrgd[owt_df02_gb09_mrgd$project == "PLOO", ]
+#plot(owt_df02_gb09_mrgd01a$ENTERO,
+#     xlab = "Time",
+#     ylab = "ENTERO Levels",
+#     main = "ENTERO Levels Over Time: PLOO")
+#grid()
+print(acf(owt_df02_gb09_mrgd01a$ENTERO, pl=TRUE, na.action = na.pass))
+ggplot(owt_df02_gb09_mrgd01a, aes(x=date_sample, y=ENTERO, group = 1)) +
+  geom_line()
+#scale_x_discrete(guide = guide_axis(check.overlap = TRUE))
+
+owt_df02_gb07_mrgd01a <- owt_df02_gb07_mrgd[owt_df02_gb07_mrgd$project == "PLOO" & owt_df02_gb07_mrgd$depth_m_bin == "[0,8)", ]
+#plot(owt_df02_gb07_mrgd01a$ENTERO,
+#     xlab = "Time",
+#     ylab = "ENTERO Levels",
+#     type = "o",
+#     main = "ENTERO Levels Over Time: PLOO - [0,8)")
+#grid()
+print(acf(owt_df02_gb07_mrgd01a$ENTERO, pl=TRUE, na.action = na.pass))
+ggplot(owt_df02_gb07_mrgd01a, aes(x=date_sample, y=ENTERO, group = 1)) +
+  geom_line()
+```
+
+```{r}
+
+```
+
