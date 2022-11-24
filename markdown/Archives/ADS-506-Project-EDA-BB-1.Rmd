@@ -1,0 +1,641 @@
+---
+title: "Appendix A - ADS506-01-FA22 - Final Project"
+author: "Team 1"
+date: "12/05/2022"
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
+header-includes:
+- \usepackage{fvextra}
+- \DefineVerbatimEnvironment{Highlighting}{Verbatim}{breaklines,commandchars=\\\{\}}
+- \usepackage{pdflscape}
+- \newcommand{\blandscape}{\begin{landscape}}
+- \newcommand{\elandscape}{\end{landscape}}
+---
+
+## RMarkdown global setup
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r global.options, include=TRUE}
+knitr::opts_chunk$set(fig.align = 'center')
+```
+
+```{r lib, message=FALSE, warning=FALSE}
+library(AppliedPredictiveModeling)
+library(BioStatR)
+library(car)
+library(caret)
+library(class)
+library(corrplot)
+library(datasets)
+library(e1071)
+library(Hmisc)
+library(mlbench)
+library(gridExtra)
+library(psych)
+library(randomForest)
+library(RANN)
+library(reshape2)
+library(rpart)
+library(rpart.plot)
+library(scales)
+library(tidyverse)
+library(tseries)
+library(zoo)
+
+set.seed(1699)
+```
+
+## Create function to generate boxplots for continuous variables
+```{r}
+# Define function to produce formatted boxplots
+box_comp <- function(xcol = c(), df = NA, rtn_met = TRUE) {
+  sig <- 3
+  metrics_df01 <- data.frame(metric = c("",
+                                        "Total N:",
+                                        "Count",
+                                        "NA Count",
+                                        "Mean",
+                                        "Median",
+                                        "Standard Deviation",
+                                        "Variance",
+                                        "Range",
+                                        "Min",
+                                        "Max",
+                                        "25th Percentile",
+                                        "75th Percentile",
+                                        "Subset w/o Outliers:",
+                                        "Count",
+                                        "%",
+                                        "Outlier %",
+                                        "NA Count",
+                                        "Mean",
+                                        "Median",
+                                        "Standard Deviation",
+                                        "Variance",
+                                        "Range",
+                                        "Min",
+                                        "Max"
+                                        ))
+  for (var in xcol) {
+    df_s1 <- df[, var]
+    df_s1s1 <-data.frame(df_s1)
+    df_s1_fit <- preProcess(df_s1s1,
+                            method = c("center", "scale"))
+    df_s1_trans <- predict(df_s1_fit, df_s1s1)
+    
+
+    # Calculate quartiles
+    var_iqr_lim <- IQR(df_s1) * 1.5
+    var_q1 <- quantile(df_s1, probs = c(.25))
+    var_otlow <- var_q1 - var_iqr_lim
+    var_q3 <- quantile(df_s1, probs = c(.75))
+    var_othigh <- var_q3 + var_iqr_lim
+    
+    # Subset non-outlier data 
+    var_non_otlr_df01 <- subset(df, (abs(df_s1_trans) <= 3))
+    #var_non_otlr_df01 <- subset(df, (df_s1 > var_otlow & df_s1 < var_othigh))
+    df_s2 <- var_non_otlr_df01[, var]
+
+    # Begin calculating measures of centrality & dispersion
+    var_mean <- mean(df_s1)
+    var_non_otlr_df01_trunc_mean <- mean(df_s2)
+    var_med <- median(df_s1)
+    var_non_otlr_df01_trunc_med <- median(df_s2)
+    var_mode <- mode(df_s1)
+    var_non_otlr_df01_trunc_mode <- mode(df_s2)
+    var_stde <- sd(df_s1)
+    var_non_otlr_df01_trunc_stde <- sd(df_s2)
+    var_vari <- var(df_s1)
+    var_non_otlr_df01_trunc_vari <- var(df_s2)
+    var01_min <- min(df[, var])
+    var01_max <- max(df[, var])
+    var01_range <- var01_max - var01_min
+    var02_min <- min(var_non_otlr_df01[, var])
+    var02_max <- max(var_non_otlr_df01[, var])
+    var02_range <- var02_max - var02_min
+    
+    # Configure y-axis min & max to sync graphs
+    plot_min <- min(var01_min, var02_min)
+    plot_max <- max(var01_max, var02_max)
+    nonoutlier_perc <- round((as.numeric(dim(var_non_otlr_df01)[1] / as.numeric(dim(df)[1]))) * 100, 1)
+    # Fill in metrics table
+    measure_val01 <- c(paste0("Variable: ", var),
+                       "",
+                       as.character(dim(df)[1]),
+                       sum(is.na(df_s1)),
+                       round(var_mean, sig),
+                       round(var_med, sig),
+                       round(var_stde, sig),
+                       round(var_vari, sig),
+                       round(var01_range, sig),
+                       round(var01_min, sig),
+                       round(var01_max, sig),
+                       round(var_q1, sig),
+                       round(var_q3, sig),
+                       "",
+                       as.character(dim(var_non_otlr_df01)[1]),
+                       paste0(nonoutlier_perc, "%"),
+                       paste0(round(100 - nonoutlier_perc, 1), "%"),
+                       sum(is.na(df_s2)),
+                       round(var_non_otlr_df01_trunc_mean, sig),
+                       round(var_non_otlr_df01_trunc_med, sig),
+                       round(var_non_otlr_df01_trunc_stde, sig),
+                       round(var_non_otlr_df01_trunc_vari, sig),
+                       round(var02_range, sig),
+                       round(var02_min, sig),
+                       round(var02_max, sig)
+                       )
+    
+    var_name <- paste0("Variable: ", var)
+    metrics_df01[, ncol(metrics_df01) + 1] <- measure_val01
+  }
+  # Format boxplot titles based on number of plots 
+  if(length(xcol == 1)) { 
+    boxplot(df, 
+            ylab = "Parameter Values", 
+            main = paste0("Boxplot for ", xcol, " (", grph_title, ")")) } 
+  else { 
+    boxplot(df,
+            ylab="ParameterValues", 
+            main=paste0("BoxplotforMultipleParameters","(",grph_title,")")) 
+  } 
+  #Returnandprintmetricstable(s) 
+  if(rtn_met==TRUE){
+    print(metrics_df01) 
+    return(metrics_df01) 
+    } 
+  }
+```
+
+## Importing Train/Test Datasets
+```{r}
+# Import 4 separate CSV files
+owt_df01a <- read.csv("water_quality_1990_1999_datasd.csv", 
+                      header = TRUE, sep = ",")
+owt_df01b <- read.csv("water_quality_2000_2010_datasd.csv", 
+                      header = TRUE, sep = ",")
+owt_df01c <- read.csv("water_quality_2011_2019_datasd.csv", 
+                      header = TRUE, sep = ",")
+owt_df01d <- read.csv("water_quality_2020_2021_datasd.csv", 
+                      header = TRUE, sep = ",")
+
+# Merge 4 seperate dataframes into 1
+owt_df01 <- rbind(owt_df01a, owt_df01b, owt_df01c, owt_df01d)
+
+print(head(owt_df01))
+#describe(owt_df01)
+
+#write.csv(owt_df01, "../data/Ocean Water/ocean_df01.csv")
+```
+## FActorize and format column types; print NA counts
+```{r}
+#Listofparametervalues 
+param_lst01<-c("CHLOROPHYLL", "DENSITY", "DO", "ENTERO", "FECAL", 
+               "OG", "PH", "SALINITY", "SUSO", "TEMP", "TOTAL", "XMS") 
+
+#Listofcolnames 
+col_lst01<-c("sample", "station", "date_sample", "time", "project", 
+             "parameter", "qualifier", "units") 
+
+#Citation:https://www.geeksforgeeks.org/find-columns-and-rows-with-na-in-r-dataframe/ 
+owt_df02<-owt_df01 
+
+for(c in col_lst01){ 
+  owt_df02[,c]<-as.factor(owt_df02[,c]) 
+}
+
+#Generate NA summary tables 
+#Citation:https://www.geeksforgeeks.org/replace-character-value-with-na-in-r/
+owt_df02[owt_df02==""]<-NA 
+print(head(owt_df02))
+```
+
+```{r}
+owt_df02_na<-sapply(owt_df02,function(x)sum(is.na(x)))
+
+owt_df02_notna<-sapply(owt_df02,function(x)sum(!is.na(x))) 
+
+owt_df02_tbl01<-rbind(owt_df02_notna, owt_df02_na) 
+
+owt_df02_tbl02<-rbind(owt_df02_tbl01, 
+                      round(prop.table(owt_df02_tbl01, margin=2), 4)) 
+
+print("Allparameters")
+```
+```{r}
+print(owt_df02_tbl02)
+```
+```{r}
+owt_df02a<-owt_df02[which(is.na(owt_df02),arr.ind=TRUE),] 
+#print(head(owt_df02a))
+
+for(p in param_lst01){
+  df=owt_df02[owt_df02$parameter==p,] 
+  #print(head(df[which(is.na(df$value),arr.ind=TRUE),])) 
+  df_na<-sapply(df,function(x)sum(is.na(x))) 
+  df_notna<-sapply(df,function(x)sum(!is.na(x))) 
+  df_tbl01<-rbind(df_notna,df_na) 
+  df_tbl02<-rbind(df_tbl01,round(prop.table(df_tbl01,margin=2),4))
+  rownames(df_tbl02)<-c("NotNAn","NAn","NotNA%","NA%") 
+  #print(p)
+  #print(df_tbl02)
+  #Thistablew/nullcountsandproportionsforeachfeaturenot displayedforspacepurposes→ 
+}
+```
+
+## Bin depth_m variable
+
+```{r}
+owt_df02$date_sample<-as.Date(owt_df02$date_sample,"%Y-%m-%d") 
+#Createbinsfordepth_mvalues 
+depth_lvls01<-c("[0,8)", "[8,33)", "[33,47)", "[47,70)", "[70,90)", 
+                "[90,112)", "[112,120]", "Unknown") 
+
+#Plotdistributionofdepth_mvalues #Citation: https://community.rstudio.com/t/ggplot-x-axis-y-axis-ticks-labels-breaks-and-limits/119123/2→ 
+
+ggplot(owt_df02,aes(x=depth_m))+ 
+  geom_histogram(color="black", bins=40,aes(y=stat(density)))+ 
+  geom_density(col="blue")+ labs(title="Histogram of`depth_m`Feature")+
+  scale_x_continuous(breaks=seq(0,120,1))+ 
+  theme(plot.title=element_text(hjust=0.5,size=12))
+```
+
+```{r}
+#Createnewcolumnwithbins 
+#Citation: https://www.marsja.se/r-add-column-to-dataframe-based-on-other-columns-conditions-dplyr/→ 
+owt_df02<-mutate(owt_df02,depth_m_bin=case_when(depth_m<8~"[0,8)", 
+                                                depth_m<33~"[8,33)", 
+                                                depth_m<47~"[33,47)", 
+                                                depth_m<70~"[47,70)", 
+                                                depth_m<90~"[70,90)", 
+                                                depth_m<112~"[90,112)", 
+                                                depth_m>=112~"[112,120]")) 
+#ReplaceNAswith"Unknown" 
+#Citation:https://statisticsglobe.com/r-replace-na-with-0/ 
+owt_df02$depth_m_bin<-replace_na(owt_df02$depth_m_bin,"Unknown")
+
+#Citation:https://www.statology.org/order-bars-ggplot2-bar-chart/ 
+owt_df02$depth_m_bin_factr=factor(owt_df02$depth_m_bin,levels=depth_lvls01) 
+print(head(owt_df02))
+```
+
+```{r}
+#Display transformed barchart 
+ggplot(owt_df02,aes(x=depth_m_bin_factr))+ 
+  geom_bar()+ labs(title="Barof`depth_m_bin`Feature")+
+  theme(plot.title=element_text(hjust=0.5,size=12))
+```
+
+## Perform several aggregations on the data for performing EDA at multiple levels
+
+```{r}
+#Display aggregations by different features:
+  # Station grouping = owt_df02_gb01
+owt_df02_gb01<-owt_df02%>% 
+  group_by(station)%>% 
+  summarise(Count=n()) 
+print(owt_df02_gb01[owt_df02_gb01$Count==min(owt_df02_gb01$Count),])
+print(owt_df02_gb01[owt_df02_gb01$Count==max(owt_df02_gb01$Count),])
+```
+
+```{r}
+# Project grouping: owt_df02_gb02 
+owt_df02_gb02<-owt_df02 %>% 
+  group_by(project) %>% 
+  summarise(Count=n()) 
+
+# Date_sample grouping: owt_df02_gb03
+owt_df02_gb03<-owt_df02%>% 
+  group_by(date_sample)%>% 
+  summarise(Count=n()) 
+
+#MainDF1 (owt_df02_gb04 Date and Paramter grouping)
+owt_df02_gb04<-owt_df02%>% 
+  group_by(date_sample,parameter)%>% 
+  summarise(Avg=mean(value))
+```
+```{r}
+# Paramter count group = owt_df02_gb05
+owt_df02_gb05<-owt_df02 %>% 
+  group_by(parameter)%>% 
+  summarise(Count=n()) 
+
+# depth_m grouping owt_df02_gb06
+owt_df02_gb06<-owt_df02%>% 
+  group_by(depth_m)%>% 
+  summarise(Count=n()) 
+
+#MainDF3:
+  # owt_df02_gb07 = date_sample, project, depth bin, parameter groupings by avg
+owt_df02_gb07<-owt_df02%>% 
+  group_by(date_sample, project, depth_m_bin, parameter)%>% 
+  summarise(Avg=mean(value))
+```
+```{r}
+# owt_df02_gb08 depth bin groupings vy count
+owt_df02_gb08<-owt_df02%>% 
+  group_by(depth_m_bin)%>% 
+  summarise(Count=n()) 
+
+#MainDF2 
+  # owt_df02_gb09= date, project, paramter groupings vy average
+owt_df02_gb09<-owt_df02%>% 
+  group_by(date_sample, project, parameter)%>% 
+  summarise(Avg=mean(value))
+```
+## putting parameters into own columns via mutate:
+```{r}
+# putting paramters into columns via mutate on owt_df02_gb07:
+  # citation: https://stackoverflow.com/questions/55516010/make-one-column-into-multiple-columns-in-r
+split_try <- owt_df02_gb07 %>%
+  mutate(rn=row_number()) %>%
+  spread(parameter, Avg) %>%
+  select(-rn)
+
+head(split_try, 5)
+```
+
+```{r}
+# dropping the TOTAL column as that was vague parameter
+split_try <- data.frame(split_try)
+splitted <- subset(split_try, select = -c(TOTAL))
+#head(splitted, 3)
+
+# dropping rows of dates before 1/1/2000:
+split_2000s <- splitted %>% filter(date_sample >= "2000-01-01")
+```
+```{r}
+sapply(splitted, function(x) sum(is.na(x)))
+```
+### PLotting histograms to see skewness/distribution
+```{r}
+# chlorophyll
+ggplot(splitted, aes(x= CHLOROPHYLL)) +
+  geom_histogram(aes(color= project, fill= project),
+                 position= "identity", bins=7, alpha=.4) +
+  labs(title= "CHLOROPHYLL (ug/L) Distribution per Project")
+  # skewed with most obs towards left (low values)
+
+# density
+ggplot(splitted, aes(x= DENSITY)) +
+  geom_histogram(aes(color= project, fill= project),
+                 position= "identity", bins=7, alpha=.4) +
+  labs(title= "DENSITY (sigma-t) Distribution per Project")
+  # relatively normal distributed
+
+# DO
+ggplot(splitted, aes(x= DO)) +
+  geom_histogram(aes(color= project, fill= project),
+                 position= "identity", bins=7, alpha=.4) +
+  labs(title= "DO (Dissolved Oxygen; mg/L) Distribution per Project")
+  # relatively normal distributed
+
+# ENTERO
+ggplot(splitted, aes(x= ENTERO)) +
+  geom_histogram(aes(color= project, fill= project),
+                 position= "identity", bins=7, alpha=.4) +
+  labs(title= "ENTERO (cfu/100mL) Distribution per Project")
+  # skewed with most obs towards left (low values)
+
+# FECAL
+ggplot(splitted, aes(x= FECAL)) +
+  geom_histogram(aes(color= project, fill= project),
+                 position= "identity", bins=7, alpha=.4) +
+  labs(title= "FECAL (cfu/100mL) Distribution per Project")
+  # skewed with most obs towards left (low values)
+
+# OG
+ggplot(splitted, aes(x= OG)) +
+  geom_histogram(aes(color= project, fill= project),
+                 position= "identity", bins=7, alpha=.4) +
+  labs(title= "OG Distribution per Project")
+  # skewed with most obs towards left (low values)
+
+# PH
+ggplot(splitted, aes(x= PH)) +
+  geom_histogram(aes(color= project, fill= project),
+                 position= "identity", bins=7, alpha=.4) +
+  labs(title= "pH Distribution per Project")
+  # near normal distribution, slightly stronger drop off on alkaline side
+
+# SALINITY
+ggplot(splitted, aes(x= SALINITY)) +
+  geom_histogram(aes(color= project, fill= project),
+                 position= "identity", bins=7, alpha=.4) +
+  labs(title= "SALINITY (ppt) Distribution per Project")
+    # essentially only values between 30 and 40, not interesting
+
+# SUSO
+ggplot(splitted, aes(x= SUSO)) +
+  geom_histogram(aes(color= project, fill= project),
+                 position= "identity", bins=7, alpha=.4) +
+  labs(title= "SUSO (cfu/100mL) Distribution per Project")
+  # skewed with most obs towards left (low values)
+
+# TEMP
+ggplot(splitted, aes(x= TEMP)) +
+  geom_histogram(aes(color= project, fill= project),
+                 position= "identity", bins=7, alpha=.4) +
+  labs(title= "TEMP (C) Distribution per Project")
+  # near normal distribution
+
+# XMS
+ggplot(splitted, aes(x= XMS)) +
+  geom_histogram(aes(color= project, fill= project),
+                 position= "identity", bins=7, alpha=.4) +
+  labs(title= "XMS Distribution per Project")
+  # skewed to right with most obs for 50-100%, especially >75%
+
+# Entero, fecal, OG, salinity, and arguably, XMS do not have interesting distributions. 
+  # I think we can safely not do salinity and XMS since they are so uniform. 
+# Entero, fecal, and Suso are measures relating to bacteria that often come from fecal matter and fecal matter (fecal) so they are likely going to show the same thing (modeling-wise). 
+  # I think we should pick one (Suso has most diverse histogram) of the three.
+
+```
+
+### Summary (Descriptive Stats) with NA's included:
+
+```{r}
+summary(splitted)
+summary(split_2000s)
+```
+
+### Plotting boxplots to see distribution
+
+```{r}
+# chlorophyll
+ggplot(splitted, aes(x= CHLOROPHYLL, fill=project)) +
+  geom_boxplot() +
+  labs(title= "CHLOROPHYLL (ug/L) Distribution per Project")
+  # primarily outlier filled
+
+# density
+ggplot(splitted, aes(x= DENSITY, fill=project)) +
+  geom_boxplot() +
+  labs(title= "DENSITY (sigma-t) Distribution per Project")
+  # most outliers on low density measures
+
+# DO
+ggplot(splitted, aes(x= DO, fill=project)) +
+  geom_boxplot() +
+  labs(title= "DO (Dissolved Oxygen; mg/L) Distribution per Project")
+  # very few outliers
+
+# ENTERO
+ggplot(splitted, aes(x= ENTERO, fill=project)) +
+  geom_boxplot() +
+  labs(title= "ENTERO (cfu/100mL) Distribution per Project")
+  # the plot is essentially all outliers 
+
+# FECAL
+ggplot(splitted, aes(x= FECAL, fill=project)) +
+  geom_boxplot() +
+  labs(title= "FECAL (cfu/100mL) Distribution per Project")
+  # the plot is essentially all outliers
+
+# OG
+ggplot(splitted, aes(x= OG, fill=project)) +
+  geom_boxplot() +
+  labs(title= "OG Distribution per Project")
+  # the plot is essentially all outliers
+
+# PH
+ggplot(splitted, aes(x= PH, fill=project)) +
+  geom_boxplot() +
+  labs(title= "pH Distribution per Project")
+  # more outliers on the acidic (low value) end more than alkaline end
+
+# SALINITY
+ggplot(splitted, aes(x= SALINITY, fill=project)) +
+  geom_boxplot() +
+  labs(title= "SALINITY (ppt) Distribution per Project")
+    # the plot is essentially all outliers
+
+# SUSO
+ggplot(splitted, aes(x= SUSO, fill=project)) +
+  geom_boxplot() +
+  labs(title= "SUSO (cfu/100mL) Distribution per Project")
+  # the plot is essentially all outliers, 
+    # fewer than other bacterial measures (fecal, entero)
+
+# TEMP
+ggplot(splitted, aes(x= TEMP, fill=project)) +
+  geom_boxplot() +
+  labs(title= "TEMP (C) Distribution per Project")
+  # some outliers, primarily at warmer temperatures
+
+# XMS
+ggplot(splitted, aes(x= XMS, fill=project)) +
+  geom_boxplot() +
+  labs(title= "XMS Distribution per Project")
+  # primarily outliers
+
+# Again the fecal, entero, OG, and salinity look nearly identical and equally uninteresting
+
+```
+
+### Looking at just numerical values (no date attached) for descriptive statistics and check correlations
+
+This is using a subset of the data where I only looked at data from 1/1/2000 onward. Then only took a portion of the values (7746) so that they had the same number of rows, assumed there wouldn't be any weird values in the set to overly screw with things. 
+
+```{r}
+splitnums <- data.frame(split_2000s[c("CHLOROPHYLL", "DENSITY", "DO", "ENTERO", 
+                                "FECAL", "OG", "PH", "SALINITY", "SUSO",
+                                "TEMP", "XMS")])
+
+```
+
+```{r}
+chlornum <- data.frame("CHLOROPHYLL" = splitnums$CHLOROPHYLL)
+chlornum <- chlornum %>% drop_na()
+
+densnum <- data.frame("DENSITY" = splitnums$DENSITY)
+densnum <- densnum %>% drop_na()
+
+donum <- data.frame("DO" = splitnums$DO)
+donum <- donum %>% drop_na()
+
+enteronum <- data.frame("ENTERO" = splitnums$ENTERO)
+enteronum <- enteronum %>% drop_na()
+
+fecalnum <- data.frame("FECAL" = splitnums$FECAL)
+fecalnum <- fecalnum %>% drop_na()
+
+ognum <- data.frame("OG" = splitnums$OG)
+ognum <- ognum %>% drop_na()
+
+phnum <- data.frame("PH" = splitnums$PH)
+phnum <- phnum %>% drop_na()
+
+salinnum <- data.frame("SALINITY" = splitnums$SALINITY)
+salinnum <- salinnum %>% drop_na()
+
+susunum <- data.frame("SUSO" = splitnums$SUSO)
+susunum <- susunum %>% drop_na()
+
+tempnum <- data.frame("TEMP" = splitnums$TEMP)
+tempnum <- tempnum %>% drop_na()
+
+xmsnum <- data.frame("XMS" = splitnums$XMS)
+xmsnum <- xmsnum %>% drop_na()
+
+```
+
+```{r}
+print("Descriptive Stats for overall parameters from 1/1/2000 onward")
+summary(chlornum)
+summary(densnum)
+summary(donum)
+summary(enteronum)
+summary(fecalnum)
+summary(ognum)
+summary(phnum)
+summary(salinnum)
+summary(susunum)
+summary(tempnum)
+summary(xmsnum)
+```
+```{r}
+print(paste("chlorophyll", nrow(chlornum)))
+print(paste("density", nrow(densnum)))
+print(paste("DO", nrow(donum)))
+print(paste("Entero", nrow(enteronum)))
+print(paste("fecal", nrow(fecalnum)))
+print(paste("OG", nrow(ognum)))
+print(paste("pH", nrow(phnum)))
+print(paste("salinity", nrow(salinnum)))
+print(paste("Suso", nrow(susunum)))
+print(paste("Temp", nrow(tempnum)))
+print(paste("XMS", nrow(xmsnum)))
+```
+```{r}
+# ignoring OG, Suso: chlorophyll is least populated at 7746
+densnum_sub <- densnum[1:7746,]
+donum_sub <- donum[1:7746,]
+enteronum_sub <- enteronum[1:7746,]
+fecalnum_sub <- fecalnum[1:7746,]
+phnum_sub <- phnum[1:7746,]
+salinnum_sub <- salinnum[1:7746,]
+tempnum_sub <- tempnum[1:7746,]
+xmsnum_sub <- xmsnum[1:7746,]
+```
+
+
+```{r}
+splitnum_sub <- data.frame("density" = densnum_sub, "DO" =donum_sub, 
+                           "enter" =enteronum_sub, "fecal" = fecalnum_sub, 
+                           "pH" = phnum_sub, "salinity" = salinnum_sub, 
+                           "temp" = tempnum_sub, "xms" = xmsnum_sub)
+# library(corrplot)
+corrplot(
+  cor(splitnum_sub), 
+  method = "square",
+  type= "lower")
+
+round(cor(splitnum_sub),2)
+```
+
