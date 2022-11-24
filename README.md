@@ -23,8 +23,12 @@ The main purpose of this project is ________. Describe the goals of the project 
 * Exploratory Data Analysis (EDA) and Preprocessing
   * Time series plots
   * Autocorrelation and plots
+  * tsibble
+  * aggregation
+  * dcast
+  * mutate
 * Modeling
-  * list of models
+  * Hunt-Winter's
 * Evaluation Metric(s)
   * RMSE
   * MAPE
@@ -33,7 +37,33 @@ The main purpose of this project is ________. Describe the goals of the project 
 R Markdown in R Studio
 
 ## Project Description
-Discuss the details of project overview. Description your selected dataset, such as data source, number of variables, size of dataset, etc. Include data dictionary if, available.  Provide questions and hypothesis that you are exploring. What specific data analysis, visualization, and modeling work are you using to solve the problem? What roadblocks and challenges are you facing? Etc
+The dataset was obtained through San Diego, California's (USA) open source data. The data is from 1990-2021 with the measured parameters occupying the same column (Parameters) but they included various chemical, optical, and biological measures for two general locations of sample stations in the Pacific Ocean off the coast of San Diego. Overall there are 1.2 million entries but when the data is reorganized so that each parameter is in its own column and measurements are averaged for each day or week, there are far fewer entries.
+The data dictionary is as follows:
+* sample
+ * unique sample ID
+* station
+ * unique location ID of the sample
+* depth_m
+ * depth, in meters, sample was taken
+* time
+ * time that the sample was taken
+* project
+ * outfall region where sample was collected (general umbrella location for sample stations that fall under these)
+ * PLOO (Point Loma Ocean Outfall)
+ * SBOO (South Bay Ocean Outfall)
+* parameter
+ * factor being recorded
+ * fluoremetry, DENSITY, DO, ENTERO, FECAL, OG, PH, SALINITY, SUSO, TEMP, TOTAL
+* qualifier
+ * symbols if the value needed clarification
+ * <, >, e, LA, ND, NS
+* value
+ * actual value of measurement
+* units
+ * units for each factor
+ * %, C, CFU/100mL, mg/L, pH, ppt, sigma-t, ug/L
+ 
+Rearranging the data to a more model friendly format, especially when taking into accound the unevenly spaced samples for each parameter, was a lot more difficult and time consuming than we anticipated it would be. 
 
 ## License
 The data was open-source data
