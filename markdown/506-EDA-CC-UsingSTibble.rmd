@@ -1,0 +1,781 @@
+title: "Appendix A - ADS506-01-FA22 - Final Project"
+author: "Team 1"
+date: "12/05/2022"
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+header-includes:
+- \usepackage{fvextra}
+- \DefineVerbatimEnvironment{Highlighting}{Verbatim}{breaklines,commandchars=\\\{\}}
+- \usepackage{pdflscape}
+- \newcommand{\blandscape}{\begin{landscape}}
+- \newcommand{\elandscape}{\end{landscape}}
+---
+
+## RMarkdown global setup
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r global.options, include=TRUE}
+knitr::opts_chunk$set(fig.align = 'center')
+```
+
+```{r lib, message=FALSE, warning=FALSE}
+library(AppliedPredictiveModeling)
+library(BioStatR)
+library(car)
+library(caret)
+library(class)
+library(corrplot)
+library(datasets)
+library(e1071)
+library(Hmisc)
+library(mlbench)
+library(gridExtra)
+library(psych)
+library(randomForest)
+library(RANN)
+library(reshape2)
+library(rpart)
+library(rpart.plot)
+library(scales)
+library(tidyverse)
+library(tseries)
+library(zoo)
+
+set.seed(1699)
+```
+
+## Create function to generate boxplots for continuous variables
+```{r}
+# Define function to produce formatted boxplots
+box_comp <- function(xcol = c(), df = NA, rtn_met = TRUE) {
+  sig <- 3
+  metrics_df01 <- data.frame(metric = c("",
+                                        "Total N:",
+                                        "Count",
+                                        "NA Count",
+                                        "Mean",
+                                        "Median",
+                                        "Standard Deviation",
+                                        "Variance",
+                                        "Range",
+                                        "Min",
+                                        "Max",
+                                        "25th Percentile",
+                                        "75th Percentile",
+                                        "Subset w/o Outliers:",
+                                        "Count",
+                                        "%",
+                                        "Outlier %",
+                                        "NA Count",
+                                        "Mean",
+                                        "Median",
+                                        "Standard Deviation",
+                                        "Variance",
+                                        "Range",
+                                        "Min",
+                                        "Max"
+                                        ))
+  for (var in xcol) {
+    df_s1 <- df[, var]
+    df_s1s1 <-data.frame(df_s1)
+    df_s1_fit <- preProcess(df_s1s1,
+                            method = c("center", "scale"))
+    df_s1_trans <- predict(df_s1_fit, df_s1s1)
+    
+
+    # Calculate quartiles
+    var_iqr_lim <- IQR(df_s1) * 1.5
+    var_q1 <- quantile(df_s1, probs = c(.25))
+    var_otlow <- var_q1 - var_iqr_lim
+    var_q3 <- quantile(df_s1, probs = c(.75))
+    var_othigh <- var_q3 + var_iqr_lim
+    
+    # Subset non-outlier data 
+    var_non_otlr_df01 <- subset(df, (abs(df_s1_trans) <= 3))
+    #var_non_otlr_df01 <- subset(df, (df_s1 > var_otlow & df_s1 < var_othigh))
+    df_s2 <- var_non_otlr_df01[, var]
+
+    # Begin calculating measures of centrality & dispersion
+    var_mean <- mean(df_s1)
+    var_non_otlr_df01_trunc_mean <- mean(df_s2)
+    var_med <- median(df_s1)
+    var_non_otlr_df01_trunc_med <- median(df_s2)
+    var_mode <- mode(df_s1)
+    var_non_otlr_df01_trunc_mode <- mode(df_s2)
+    var_stde <- sd(df_s1)
+    var_non_otlr_df01_trunc_stde <- sd(df_s2)
+    var_vari <- var(df_s1)
+    var_non_otlr_df01_trunc_vari <- var(df_s2)
+    var01_min <- min(df[, var])
+    var01_max <- max(df[, var])
+    var01_range <- var01_max - var01_min
+    var02_min <- min(var_non_otlr_df01[, var])
+    var02_max <- max(var_non_otlr_df01[, var])
+    var02_range <- var02_max - var02_min
+    
+    # Configure y-axis min & max to sync graphs
+    plot_min <- min(var01_min, var02_min)
+    plot_max <- max(var01_max, var02_max)
+    nonoutlier_perc <- round((as.numeric(dim(var_non_otlr_df01)[1] / as.numeric(dim(df)[1]))) * 100, 1)
+    measure_val01 <- c(paste0("Variable: ", var),
+                       "",
+                       as.character(dim(df)[1]),
+                       sum(is.na(df_s1)),
+                       round(var_mean, sig),
+                       round(var_med, sig),
+                       round(var_stde, sig),
+                       round(var_vari, sig),
+                       round(var01_range, sig),
+                       round(var01_min, sig),
+                       round(var01_max, sig),
+                       round(var_q1, sig),
+                       round(var_q3, sig),
+                       "",
+                       as.character(dim(var_non_otlr_df01)[1]),
+                       paste0(nonoutlier_perc, "%"),
+                       paste0(round(100 - nonoutlier_perc, 1), "%"),
+                       sum(is.na(df_s2)),
+                       round(var_non_otlr_df01_trunc_mean, sig),
+                       round(var_non_otlr_df01_trunc_med, sig),
+                       round(var_non_otlr_df01_trunc_stde, sig),
+                       round(var_non_otlr_df01_trunc_vari, sig),
+                       round(var02_range, sig),
+                       round(var02_min, sig),
+                       round(var02_max, sig)
+                       )
+    
+    var_name <- paste0("Variable: ", var)
+    metrics_df01[, ncol(metrics_df01) + 1] <- measure_val01
+}
+  boxplot(df)
+  if(rtn_met == TRUE) {
+    return(metrics_df01)
+  }
+}
+```
+
+## Importing Train/Test Datasets
+```{r}
+# Import 4 separate CSV fukes
+setwd('C:/Users/Connie/Documents/Masters Applied Data Science USD/506/Week2/Final Project/Ocean WAter')
+
+owt_df01a <- read_csv("water_quality_1990_1999_datasd.csv", col_types = cols(date_sample=col_date("%Y-%m-%d")))
+owt_df01b <- read_csv("water_quality_2000_2010_datasd.csv", col_types = cols(date_sample=col_date("%Y-%m-%d")))
+owt_df01c <- read_csv("water_quality_2011_2019_datasd.csv", col_types = cols(date_sample=col_date("%Y-%m-%d")))
+owt_df01d <- read_csv("water_quality_2020_2021_datasd.csv", col_types = cols(date_sample=col_date("%Y-%m-%d")))
+
+
+# Merge 4 separate dataframes into 1
+owt_df01 <- rbind(owt_df01a, owt_df01b, owt_df01c, owt_df01d)
+
+# Bin the depth column by normal distribution cut offs
+owt_df01$bin_depth <- cut(owt_df01$depth_m, breaks=c(0,8,33,47,70,90,112))
+# labels=c("1-4","5-10","10-15")
+
+# (CC) Split merged dataset into separate dataframes by PLOO and SBOO projects
+df_ploo <- owt_df01[ which(owt_df01$project=='PLOO'), ]
+df_sboo <- owt_df01[ which(owt_df01$project=='SBOO'), ]
+
+print(head(owt_df01))
+describe(owt_df01)
+
+#write.csv(owt_df01, "../data/Ocean Water/ocean_df01.csv")
+```
+
+
+```{r CC-EDA-TrendSeasonality-1Year-PLOO1991}
+
+# TIME SERIES PLOTS FOR PLOO PROJECT
+plot_1991_parameters <- function(df_data) {
+  
+  # Get number of parameters
+  params <- unique(df_data$parameter)
+  numCats <- length(params)
+  
+  # Plot time series for each parameter: ENTERO, PH, SALINITY etc.
+  for (param in params)
+  {
+     #print("param = ")
+     #print(param)
+     
+     # Plot for One Year in Dataset PLOO - 1991
+     df_param <- subset(df_data, format(as.Date(date_sample),"%Y")==1991 & df_data$parameter == param,)
+      
+     # if no data, then skip to next parameter
+     if (dim(df_param)[1] == 0) {
+       #print(dim(df_param))
+       next
+     }
+     
+     # take the mean of all station values for that date
+     df_param <- aggregate(x = df_param$value, by = list(df_param$date_sample), FUN = mean)
+     
+     # cut out outliers
+     df_param <- df_param[df_param$x < 6000, ]
+    
+     # ts_param <- ts(df_param$x, start = c(1991, 1), freq = 365)
+
+     # https://koalatea.io/r-plot-timeseries/
+     print(ggplot(df_param, aes(x = Group.1, y = x)) +
+       geom_line() +
+       theme(axis.text.x = element_text(angle = 45, hjust = 1))+
+       scale_x_date(date_labels = "%Y-%b") +ggtitle(paste0("plot - PLOO - all depths - ",param)))
+     
+  }
+    
+}
+
+plot_1991_parameters(df_ploo)
+
+```
+
+
+
+```{r CC-EDA-TrendSeasonality-1YearSBOO}
+
+# 1 YEAR TIME SERIES FOR SBOO PROJECT ALL DEPTHS
+
+plot_sboo_1999_parameters <- function(df_data) {
+  
+  # Get number of parameters
+  params <- unique(df_data$parameter)
+  numCats <- length(params)
+  
+  # Plot time series for each parameter: ENTERO, PH, SALINITY etc.
+  for (param in params)
+  {
+     #print("param = ")
+     #print(param)
+     
+     # Plot for One Year in Dataset - 1999
+     df_param <- subset(df_data, format(as.Date(date_sample),"%Y")==1999 & df_data$parameter == param,)
+     
+     #print(colnames(df_param))
+     #print(as.data.frame(table(df_param$bin_depth)))
+       
+     if (dim(df_param)[1] == 0) {
+       print(dim(df_param))
+       next
+     }
+     
+     df_param <- aggregate(x = df_param$value, by = list(df_param$date_sample), FUN = mean)
+    df_param <- df_param[df_param$x < 6000, ]
+    #ts_param <- ts(df_param$x, start = c(1991, 1), freq = 365)
+
+    # https://koalatea.io/r-plot-timeseries/
+    print(ggplot(df_param, aes(x = Group.1, y = x)) +
+       geom_line() +
+       theme(axis.text.x = element_text(angle = 45, hjust = 1))+
+       scale_x_date(date_labels = "%Y-%b") +ggtitle(paste0("plot - 1999 - SBOO - all depths - ",param)))
+     
+  }
+    
+}
+
+plot_sboo_1999_parameters(df_sboo)
+```
+
+
+
+```{r CC-EDA-TrendSeasonality-PLOO-5Years}
+
+# TIMES SERIES for PLOO 5 YEARS 1991 - 1996
+
+plot_5years_parameters <- function(df_data) {
+  
+  # Get number of parameters
+  params <- unique(df_data$parameter)
+  numCats <- length(params)
+  
+  # Plot time series for each parameter: ENTERO, PH, SALINITY etc.
+  for (param in params)
+  {
+     #print("param = ")
+     print(param)
+     
+     # Get rows between 1991 - 1996
+     df_param <- subset(df_data, format(as.Date(date_sample),"%Y")> 1997 & format(as.Date(date_sample),"%Y") < 2003 & df_data$parameter == param,)
+     
+     #print(colnames(df_param))
+     #print(as.data.frame(table(df_param$bin_depth)))
+       
+     if (dim(df_param)[1] == 0) {
+       next
+     }
+     
+     df_param <- aggregate(x = df_param$value, by = list(df_param$date_sample), FUN = mean)
+    df_param <- df_param[df_param$x < 6000, ]
+    #ts_param <- ts(df_param$x, start = c(1991, 1), freq = 365)
+
+    # https://koalatea.io/r-plot-timeseries/
+    print(ggplot(df_param, aes(x = Group.1, y = x)) +
+       geom_line() +
+       theme(axis.text.x = element_text(angle = 45, hjust = 1))+
+       scale_x_date(date_labels = "%Y-%b") +ggtitle(paste0("PLOO - 1991-1996 - all depths - ",param)))
+     
+  }
+    
+}
+
+plot_5years_parameters(df_ploo)
+
+```
+```{r CC-EDA-TrendSeasonality-SBOO-5Years}
+plot_5years_parameters(df_sboo)
+```
+
+
+```{r CC-EDA-TrendSeasonality-weekmonth-CHECK}
+# ENTERO
+# By Range 1 Week
+# https://stackoverflow.com/questions/22439540/how-to-get-week-numbers-from-dates
+
+df_ploo_1mon_entero <- subset(df_ploo, format(as.Date(date_sample),"%Y-%m")=='1991-01' & df_ploo$parameter == "ENTERO",)
+
+#out <- strftime(df_ploo_1mon_entero$date_sample, format = "%V")
+
+df_ploo_1mon_entero <- aggregate(x = df_ploo_1mon_entero$value, by = list(df_ploo_1mon_entero$date_sample), FUN = mean)
+
+# Find the outlier value and remove it
+hist(df_ploo_1mon_entero$x, main = "Histogram of Averaged Values over All Stations and Depths in 1 week in January 1991")
+
+df_ploo_1mon_entero <- df_ploo_1mon_entero[df_ploo_1mon_entero$x < 6000, ]
+
+ts_ploo_1mon_entero <- ts(df_ploo_1mon_entero$x, start = c(1991, 1), freq = 365)
+
+plot(ts_ploo_1mon_entero,
+     xlab = "Time",
+     ylab = "Entero Levels",
+     type = "o",
+     main = "Figure 1. Entero Levels Over 1 Week (1991)")
+grid()
+
+# https://koalatea.io/r-plot-timeseries/
+ggplot(df_ploo_1mon_entero, aes(x = Group.1, y = x)) +
+       geom_line() +
+   theme(axis.text.x = element_text(angle = 45, hjust = 1))+
+       scale_x_date(date_labels = "%Y-%b-%d", breaks = date_breaks("1 day"))
+
+
+# By Range 1 Month - Jan 1991
+df_ploo_1mon_entero <- subset(df_ploo, format(as.Date(date_sample),"%Y-%m")=='1991-01' & df_ploo$parameter == "ENTERO",)
+
+df_ploo_1mon_entero <- aggregate(x = df_ploo_1mon_entero$value, by = list(df_ploo_1mon_entero$date_sample), FUN = mean)
+
+# Find the outlier value and remove it
+hist(df_ploo_1mon_entero$x, main = "Histogram of Averaged Values over All Stations and Depths in January 1991")
+
+df_ploo_1mon_entero <- df_ploo_1mon_entero[df_ploo_1mon_entero$x < 6000, ]
+
+ts_ploo_1mon_entero <- ts(df_ploo_1mon_entero$x, start = c(1991, 1), freq = 365)
+
+# https://koalatea.io/r-plot-timeseries/
+ggplot(df_ploo_1mon_entero, aes(x = Group.1, y = x)) +
+       geom_line() +
+   theme(axis.text.x = element_text(angle = 45, hjust = 1))+
+       scale_x_date(date_labels = "%Y-%b-%d", breaks = date_breaks("1 day"))
+
+```
+
+
+
+```{r CC-EDA-TrendSeasonality-1year-CHECK}
+# By Range 1 Year
+df_ploo_1yr_entero <- subset(df_ploo, format(as.Date(date_sample),"%Y")==1991 & df_ploo$parameter == "ENTERO",)
+
+df_ploo_1yr_entero <- aggregate(x = df_ploo_1yr_entero$value, by = list(df_ploo_1yr_entero$date_sample), FUN = mean)
+
+# Find the outlier value and remove it
+hist(df_ploo_1yr_entero$x, main = "Histogram of Averaged Values over All Stations and Depths")
+
+df_ploo_1yr_entero <- df_ploo_1yr_entero[df_ploo_1yr_entero$x < 6000, ]
+
+ts_ploo_1yr_entero <- ts(df_ploo_1yr_entero$x, start = c(1991, 1), freq = 365)
+
+plot(ts_ploo_1yr_entero,
+     xlab = "Time",
+     ylab = "Entero Levels",
+     type = "o",
+     main = "Figure 1. Entero Levels Over 1 Year (1991)")
+grid()
+
+# https://koalatea.io/r-plot-timeseries/
+ggplot(df_ploo_1yr_entero, aes(x = Group.1, y = x)) +
+       geom_line() +
+   theme(axis.text.x = element_text(angle = 45, hjust = 1))+
+       scale_x_date(date_labels = "%Y-%b", breaks = date_breaks("1 month"))
+```
+
+
+```{r CC-EDA-TrendSeasonality-PLOO-5years}
+# https://joonim.medium.com/moving-to-tidy-forecasting-in-r-how-to-visualize-time-series-data-1d0e42aef11a
+
+# Range for 5 years in dataset (1991 - 1996)
+# decompose to detect seasonality
+df_ploo_1991_1996_entero <- subset(df_ploo, format(as.Date(date_sample),"%Y")<= 1996 & df_ploo$parameter == "ENTERO" & df_ploo$value < 6000,)
+
+df_ploo_1991_1996_entero <- aggregate(x = df_ploo_1991_1996_entero$value, by = list(df_ploo_1991_1996_entero$date_sample), FUN = mean)
+
+
+library(ggplot2)
+
+ggplot(df_ploo_1991_1996_entero, aes(x = Group.1, y = x)) +
+       geom_line() +
+   theme(axis.text.x = element_text(angle = 45, hjust = 1))+
+       scale_x_date(date_labels = "%Y-%b-%d", breaks = date_breaks("1 months"))
+
+#library(tibble)
+#tb <- as_tibble(df_ploo_1991_1996_entero)
+#ts_ploo_param <- ts(tb$x, start = c(1991,1), frequency = 365.25)
+
+#ts_ploo_1991_1996_entero <- ts(df_ploo_1991_1996_entero$x, start = c(1991, 1), freq = 365)
+
+#library(fpp3)
+#library(feasts)
+#tb %>% autoplot(tb)
+
+#ts_ploo_param <- na.remove(ts_ploo_param)
+#ts_comp_ploo_param <- decompose(ts_ploo_param)
+#plot(ts_comp_ploo_param)
+```
+```{r CC-EDA-TrendSeasonality-SBOO-5years}
+# Range for 5 years in dataset (1991 - 1996)
+# decompose to detect seasonality
+df_sboo_1991_1996_entero <- subset(df_sboo, format(as.Date(date_sample),"%Y")<= 2009 & df_sboo$parameter == "ENTERO" & df_sboo$value < 6000,)
+
+#df_ploo_entero <- subset(df_ploo_1991_1996_entero, df_ploo_entero$x < 6000,)
+
+df_sboo_1991_1996_entero <- aggregate(x = df_sboo_1991_1996_entero$value, by = list(df_sboo_1991_1996_entero$date_sample), FUN = mean)
+
+ts_sboo_1991_1996_entero <- ts(df_sboo_1991_1996_entero$x, start = c(1991, 1), freq = 365)
+
+ts_sboo_1991_1996_entero <- na.remove(ts_sboo_1991_1996_entero)
+ts_comp_sboo_1991_1996_entero <- decompose(ts_sboo_1991_1996_entero)
+plot(ts_comp_sboo_1991_1996_entero)
+```
+
+```{r CC-EDA-TrendSeasonality-allyears}
+# Range for whole dataset in years
+# decompose to detect seasonality
+# https://stats.stackexchange.com/questions/346497/time-series-seasonality-test#:~:text=One%20of%20the%20most%20common,command%20from%20the%20forecast%20package.
+
+plot_allyears_parameters <- function(df_data, dataset_name) {
+  
+  # Get number of parameters
+  params <- unique(df_data$parameter)
+  numCats <- length(params)
+  
+  # Plot time series for each parameter: ENTERO, PH, SALINITY etc.
+  for (param in params)
+  {
+     print("param = ")
+     print(param)
+     
+     df_param <- subset(df_data, df_data$parameter == param,)
+     df_param <- subset(df_param, df_param$value < 6000,)
+     df_param <- aggregate(x = df_param$value, by = list(df_param$date_sample), FUN = mean)
+
+     ts_param <- ts(df_param$x, start = c(1991, 1), freq = 52)
+     ts_param <- na.remove(ts_param)
+
+     ts_comp_param <- decompose(ts_param)
+     plot(ts_comp_param)
+     mtext(param, side=3, line = -2)
+     
+  }
+  
+}
+
+plot_allyears_parameters(df_ploo, "PLOO")
+plot_allyears_parameters(df_sboo, "SBOO")
+
+# Detecting cycles with Fourier Transform?
+# https://stats.stackexchange.com/questions/217841/deseasonalizing-data-with-fourier-analysis
+# https://medium.com/@khairulomar/deconstructing-time-series-using-fourier-transform-e52dd535a44e
+# https://stackoverflow.com/questions/12330581/too-few-periods-for-decompose
+# https://stats.stackexchange.com/questions/346497/time-series-seasonality-test#:~:text=One%20of%20the%20most%20common,command%20from%20the%20forecast%20package.
+#https://stackoverflow.com/questions/15838533/rotating-axis-labels-in-date-format
+# https://bookdown.dongzhuoer.com/hadley/ggplot2-book/date-time.html
+# https://www.stat.berkeley.edu/~s133/dates.html
+# https://koalatea.io/r-plot-timeseries/
+# https://stackoverflow.com/questions/72049126/how-to-get-x-axis-to-show-all-months-in-dataset
+
+
+
+```
+
+```{r CC-EDA-TrendSeasonality-allyears}
+# Range for whole dataset in years
+# decompose to detect seasonality
+# https://stats.stackexchange.com/questions/346497/time-series-seasonality-test#:~:text=One%20of%20the%20most%20common,command%20from%20the%20forecast%20package.
+df_ploo_entero <- subset(df_ploo, df_ploo$parameter == "ENTERO",)
+
+df_ploo_entero <- subset(df_ploo_entero, df_ploo_entero$value < 6000,)
+
+df_ploo_entero <- aggregate(x = df_ploo_entero$value, by = list(df_ploo_entero$date_sample), FUN = mean)
+
+ts_ploo_entero <- ts(df_ploo_entero$x, start = c(1991, 1), freq = 365)
+
+ts_ploo_entero <- na.remove(ts_ploo_entero)
+
+ts_comp_ploo_entero <- decompose(ts_ploo_entero)
+plot(ts_comp_ploo_entero)
+
+```
+
+
+```{r CC-EDA-TrendSeasonality-SBOO-allyears}
+# Range for whole dataset in years
+# decompose to detect seasonality
+# https://stats.stackexchange.com/questions/346497/time-series-seasonality-test#:~:text=One%20of%20the%20most%20common,command%20from%20the%20forecast%20package.
+df_sboo_entero <- subset(df_sboo, df_sboo$parameter == "ENTERO",)
+
+df_sboo_entero <- subset(df_sboo_entero, df_sboo_entero$value < 6000,)
+
+df_sboo_entero <- aggregate(x = df_sboo_entero$value, by = list(df_sboo_entero$date_sample), FUN = mean)
+
+ts_sboo_entero <- ts(df_sboo_entero$x, start = c(1991, 1), freq = 365)
+
+ts_sboo_entero <- na.remove(ts_sboo_entero)
+
+ts_comp_sboo_entero <- decompose(ts_sboo_entero)
+plot(ts_comp_sboo_entero)
+
+```
+
+```{r CC-EDA-OutOfRangeValues}
+
+# plot a bunch of histograms per parameter and per project
+
+  params <- unique(df_ploo$parameter)
+  numCats <- length(params)
+  
+  # Plot time series for each parameter: ENTERO, PH, SALINITY etc.
+  for (param in params)
+  {
+     df_ploo_param <- subset(df_ploo, df_ploo$parameter == param,)
+     hist(df_ploo_param$value, main = "Histogram of Values Per Parameter")
+     mtext(param, side=3)
+     #df_ploo_param <- df_ploo_param[df_ploo_param$value < 6000, ]
+     
+     # print out text range to output console
+     r <- min(df_ploo_param$value, na.rm=TRUE)
+     t <- max(df_ploo_param$value, na.rm=TRUE)
+     writeLines(paste(param, " min: ", r))
+     writeLines(paste(param, " max: ", t))
+     # https://stackoverflow.com/questions/4716152/why-do-r-objects-not-print-in-a-function-or-a-for-loop
+     #print(paste(param, " range: ", r)) 
+  }
+
+
+```
+Output:
+Lines marked ">>>>>>>>" are values that do not make sense:
+
+CHLOROPHYLL  min:  -0.333
+CHLOROPHYLL  max:  91.0317
+DENSITY  min:  15.0254
+DENSITY  max:  27.066
+DO  min:  -9.99e-29>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+DO  max:  89
+PH  min:  7.124
+PH  max:  8.727
+SALINITY  min:  0>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+SALINITY  max:  37.8
+TEMP  min:  0>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+TEMP  max:  25.54
+XMS  min:  -37>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+XMS  max:  95.41
+ENTERO  min:  0>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+ENTERO  max:  29000
+FECAL  min:  0>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+FECAL  max:  77000
+TOTAL  min:  0>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+TOTAL  max:  1100000>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+OG  min:  0.2
+OG  max:  0.955
+SUSO  min:  0.2
+SUSO  max:  84.9
+
+
+```{r}
+# Display aggregations by different features
+owt_df01_gb01 <- owt_df01 %>%
+  group_by(station) %>%
+  summarise(Count = n())
+
+owt_df01_gb02 <- owt_df01 %>%
+  group_by(project) %>%
+  summarise(Count = n())
+
+owt_df01_gb03 <- owt_df01 %>%
+  group_by(date_sample) %>%
+  summarise(Count = n())
+
+owt_df01_gb04 <- owt_df01 %>%
+  group_by(date_sample, parameter) %>%
+  summarise(Total = mean(value))
+
+print(owt_df01_gb01)
+print(owt_df01_gb02)
+print(head(owt_df01_gb03))
+print(head(owt_df01_gb04))
+
+# Display stations with highest and lowest sample n
+print(owt_df01_gb01[owt_df01_gb01$Count == min(owt_df01_gb01$Count), ])
+print(owt_df01_gb01[owt_df01_gb01$Count == max(owt_df01_gb01$Count), ])
+```
+
+```{r}
+print(head(owt_df01_gb04))
+param_lst01 <- c("CHLOROPHYLL",
+                 "DENSITY", 
+                 "DO", 
+                 "ENTERO", 
+                 "FECAL", 
+                 "OG", 
+                 "PH", 
+                 "SALINITY", 
+                 "SUSO", 
+                 "TEMP", 
+                 "TOTAL", 
+                 "XMS")
+
+# Create custom function to cast individual parameters to columns
+param_col <- function(param = NA, df = NA) {
+  param_df <- df[df$parameter == param, ]
+  #print(head(param_df))
+  # Citation: https://www.datasciencemadesimple.com/melting-casting-r/
+  param_df_cast <- dcast(param_df, date_sample~parameter, mean)
+  #print(head(param_df_cast))
+  return(param_df_cast)
+}
+
+# Run custom function on each of the 12 parameters
+owt_df01_gb04_chl <- param_col(param = "CHLOROPHYLL", df = owt_df01_gb04)
+#print(owt_df01_gb04_chl)
+owt_df01_gb04_den <- param_col(param = "DENSITY", df = owt_df01_gb04)
+#print(owt_df01_gb04_den)
+owt_df01_gb04_dox <- param_col(param = "DO", df = owt_df01_gb04)
+#print(owt_df01_gb04_dox)
+owt_df01_gb04_ent <- param_col(param = "ENTERO", df = owt_df01_gb04)
+#print(owt_df01_gb04_ent)
+owt_df01_gb04_fec <- param_col(param = "FECAL", df = owt_df01_gb04)
+#print(owt_df01_gb04_fec)
+owt_df01_gb04_org <- param_col(param = "OG", df = owt_df01_gb04)
+#print(owt_df01_gb04_org)
+owt_df01_gb04_phl <- param_col(param = "PH", df = owt_df01_gb04)
+#print(owt_df01_gb04_phl)
+owt_df01_gb04_sal <- param_col(param = "SALINITY", df = owt_df01_gb04)
+#print(owt_df01_gb04_sal)
+owt_df01_gb04_sus <- param_col(param = "SUSO", df = owt_df01_gb04)
+#print(owt_df01_gb04_sus)
+owt_df01_gb04_tmp <- param_col(param = "TEMP", df = owt_df01_gb04)
+#print(owt_df01_gb04_tmp)
+owt_df01_gb04_tot <- param_col(param = "TOTAL", df = owt_df01_gb04)
+#print(owt_df01_gb04_tot)
+owt_df01_gb04_xms <- param_col(param = "XMS", df = owt_df01_gb04)
+print("dcasting:")
+print(owt_df01_gb04_xms)
+
+# Merge individual casted parameter df's into 1 df
+# Citation: https://www.geeksforgeeks.org/joining-of-dataframes-in-r-programming/
+owt_df01_gb04_mrgd <- merge(x = owt_df01_gb04_chl,
+                            y = owt_df01_gb04_den,
+                            by ="date_sample",
+                            all = TRUE)
+
+owt_df01_gb04_mrgd <- merge(x = owt_df01_gb04_mrgd,
+                            y = owt_df01_gb04_dox,
+                            by ="date_sample",
+                            all = TRUE)
+
+owt_df01_gb04_mrgd <- merge(x = owt_df01_gb04_mrgd,
+                            y = owt_df01_gb04_ent,
+                            by ="date_sample",
+                            all = TRUE)
+
+owt_df01_gb04_mrgd <- merge(x = owt_df01_gb04_mrgd,
+                            y = owt_df01_gb04_fec,
+                            by ="date_sample",
+                            all = TRUE)
+
+owt_df01_gb04_mrgd <- merge(x = owt_df01_gb04_mrgd,
+                            y = owt_df01_gb04_org,
+                            by ="date_sample",
+                            all = TRUE)
+
+owt_df01_gb04_mrgd <- merge(x = owt_df01_gb04_mrgd,
+                            y = owt_df01_gb04_phl,
+                            by ="date_sample",
+                            all = TRUE)
+
+owt_df01_gb04_mrgd <- merge(x = owt_df01_gb04_mrgd,
+                            y = owt_df01_gb04_sal,
+                            by ="date_sample",
+                            all = TRUE)
+
+owt_df01_gb04_mrgd <- merge(x = owt_df01_gb04_mrgd,
+                            y = owt_df01_gb04_sus,
+                            by ="date_sample",
+                            all = TRUE)
+
+owt_df01_gb04_mrgd <- merge(x = owt_df01_gb04_mrgd,
+                            y = owt_df01_gb04_tmp,
+                            by ="date_sample",
+                            all = TRUE)
+
+owt_df01_gb04_mrgd <- merge(x = owt_df01_gb04_mrgd,
+                            y = owt_df01_gb04_tot,
+                            by ="date_sample",
+                            all = TRUE)
+
+owt_df01_gb04_mrgd <- merge(x = owt_df01_gb04_mrgd,
+                            y = owt_df01_gb04_xms,
+                            by ="date_sample",
+                            all = TRUE)
+
+print(owt_df01_gb04_mrgd)
+describe(owt_df01_gb04_mrgd)
+```
+
+## Run function to create comparative boxplots
+```{r, fig.height=10, fig.width=10}
+num_var_lst01 <- c("value")
+
+# Run custom function to ID outliers and generate boxplot
+owt_df03 <- subset(x = owt_df01, select = num_var_lst01)
+owt_df03 <- na.omit(owt_df03)
+print(head(owt_df03))
+#box_comp(xcol = num_var_lst01, df = subset(x = owt_df03, select = num_var_lst01), rtn_met = TRUE)
+```
+
+```{r, fig.height=10, fig.width=15}
+
+print(head(owt_df01_gb04))
+print(tail(owt_df01_gb04))
+
+# Viz time series data for ENTERO parameter
+owt_df01_gb04a <- owt_df01_gb04[owt_df01_gb04$parameter == "ENTERO", ]
+# & owt_df01_gb04$station == "A1"
+aps_df01_ts01 <- ts(owt_df01_gb04a$Total, start = c(1990, 1), freq = 184)
+#, start = c(2020, 1), freq = 52
+#print(aps_df01_ts01)
+
+#ship_fore_avg <- tslm(aps_df01_ts01 ~ trend)
+#ship_fore_trnd <- tslm(aps_df01_ts01 ~ trend + I(trend^2))
+
+plot(aps_df01_ts01,
+     xlab = "Time",
+     ylab = "Entero Levels",
+     type = "o",
+     main = "Figure 1. Entero Levels Over Five Years")
+grid()
+
+print(acf(aps_df01_ts01, pl=TRUE, na.action = na.pass))
+```
+
