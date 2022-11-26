@@ -620,6 +620,7 @@ owt_df02_gb07_wkly = ts_eda(ts_df = owt_df02_gb07,
 
 ```{r EDA-CC-linearinterpolation}
 
+# http://publish.illinois.edu/spencer-guerrero/2014/12/11/2-dealing-with-missing-data-in-r-omit-approx-or-spline-part-1/
 
 
 library(imputeTS)
@@ -642,218 +643,329 @@ impute_missing_values <- function(df_data) {
   }
 }
 
-# remove NAs
-# Linear Interpolation
+# remove NAs using Linear Interpolation  na.interpolation()
 library(imputeTS)
 
-# owt_df02_gb04_mrgd
-x <- zoo(owt_df02_gb04_mrgd$CHLOROPHYLL, owt_df02_gb04_mrgd$date_sample)
-owt_df02_gb04_mrgd$CHLOROPHYLL <- na.interpolation(x, option = "linear")
+# Merged Table
+copy_owt_df02_gb04_mrgd <- data.frame(owt_df02_gb04_mrgd)
+
+x <- zoo(copy_owt_df02_gb04_mrgd$CHLOROPHYLL, copy_owt_df02_gb04_mrgd$date_sample)
+copy_owt_df02_gb04_mrgd$CHLOROPHYLL <- na.interpolation(x, option = "linear")
+
+x <- zoo(copy_owt_df02_gb04_mrgd$DENSITY, copy_owt_df02_gb04_mrgd$date_sample)
+copy_owt_df02_gb04_mrgd$DENSITY <- na.interpolation(x, option = "linear")
 
-x <- zoo(owt_df02_gb04_mrgd$DENSITY, owt_df02_gb04_mrgd$date_sample)
-owt_df02_gb04_mrgd$DENSITY <- na.interpolation(x, option = "linear")
+x <- zoo(copy_owt_df02_gb04_mrgd$DO, copy_owt_df02_gb04_mrgd$date_sample)
+copy_owt_df02_gb04_mrgd$DO <- na.interpolation(x, option = "linear")
 
-x <- zoo(owt_df02_gb04_mrgd$DO, owt_df02_gb04_mrgd$date_sample)
-owt_df02_gb04_mrgd$DO <- na.interpolation(x, option = "linear")
+x <- zoo(copy_owt_df02_gb04_mrgd$ENTERO, copy_owt_df02_gb04_mrgd$date_sample)
+copy_owt_df02_gb04_mrgd$ENTERO <- na.interpolation(x, option = "linear")
+
+x <- zoo(copy_owt_df02_gb04_mrgd$FECAL, copy_owt_df02_gb04_mrgd$date_sample)
+copy_owt_df02_gb04_mrgd$FECAL <- na.interpolation(x, option = "linear")
+
+x <- zoo(copy_owt_df02_gb04_mrgd$OG, copy_owt_df02_gb04_mrgd$date_sample)
+copy_owt_df02_gb04_mrgd$OG <- na.interpolation(x, option = "linear")
 
-x <- zoo(owt_df02_gb04_mrgd$ENTERO, owt_df02_gb04_mrgd$date_sample)
-owt_df02_gb04_mrgd$ENTERO <- na.interpolation(x, option = "linear")
+x <- zoo(copy_owt_df02_gb04_mrgd$PH, copy_owt_df02_gb04_mrgd$date_sample)
+copy_owt_df02_gb04_mrgd$PH <- na.interpolation(x, option = "linear")
+
+x <- zoo(copy_owt_df02_gb04_mrgd$SALINITY, copy_owt_df02_gb04_mrgd$date_sample)
+copy_owt_df02_gb04_mrgd$SALINITY <- na.interpolation(x, option = "linear")
+
+x <- zoo(copy_owt_df02_gb04_mrgd$SUSO, copy_owt_df02_gb04_mrgd$date_sample)
+copy_owt_df02_gb04_mrgd$SUSO <- na.interpolation(x, option = "linear")
+
+x <- zoo(copy_owt_df02_gb04_mrgd$TEMP, copy_owt_df02_gb04_mrgd$date_sample)
+copy_owt_df02_gb04_mrgd$TEMP <- na.interpolation(x, option = "linear")
+
+x <- zoo(copy_owt_df02_gb04_mrgd$XMS, copy_owt_df02_gb04_mrgd$date_sample)
+copy_owt_df02_gb04_mrgd$XMS <- na.interpolation(x, option = "linear")
+
+# plot without interpolation and with interpolation
+# only plot a year (1996) so that it's easier to see
+df_original <- subset(owt_df02_gb04_mrgd, format(as.Date(date_sample),"%Y")==1996,)
+copy_owt_df02_gb04_mrgd <- subset(owt_df02_gb04_mrgd, format(as.Date(date_sample),"%Y")==1996,)
+
+print(ggplot(df_original, aes(x = date_sample, y = CHLOROPHYLL)) +
+       geom_line() +
+       theme(axis.text.x = element_text(angle = 45, hjust = 1))+
+       scale_x_date(date_labels = "%Y-%b", breaks = date_breaks("1 month")) +ggtitle(paste0("df02_gb04_mrgd - ", "original")))
+
+print(ggplot(copy_owt_df02_gb04_mrgd, aes(x = date_sample, y = CHLOROPHYLL)) +
+       geom_line() +
+       theme(axis.text.x = element_text(angle = 45, hjust = 1))+
+       scale_x_date(date_labels = "%Y-%b", breaks = date_breaks("1 month")) +ggtitle(paste0("df02_gb04_mrgd - ", "na.interpolation")))
 
-x <- zoo(owt_df02_gb04_mrgd$FECAL, owt_df02_gb04_mrgd$date_sample)
-owt_df02_gb04_mrgd$FECAL <- na.interpolation(x, option = "linear")
+# TEMP
+print(ggplot(df_original, aes(x = date_sample, y = TEMP)) +
+       geom_line() +
+       theme(axis.text.x = element_text(angle = 45, hjust = 1))+
+       scale_x_date(date_labels = "%Y-%b", breaks = date_breaks("1 month")) +ggtitle(paste0("df02_gb04_mrgd - TEMP - ", "original")))
 
-x <- zoo(owt_df02_gb04_mrgd$OG, owt_df02_gb04_mrgd$date_sample)
-owt_df02_gb04_mrgd$OG <- na.interpolation(x, option = "linear")
+print(ggplot(copy_owt_df02_gb04_mrgd, aes(x = date_sample, y = TEMP)) +
+       geom_line() +
+       theme(axis.text.x = element_text(angle = 45, hjust = 1))+
+       scale_x_date(date_labels = "%Y-%b", breaks = date_breaks("1 month")) +ggtitle(paste0("df02_gb04_mrgd - TEMP - ", "na.interpolation")))
 
-x <- zoo(owt_df02_gb04_mrgd$PH, owt_df02_gb04_mrgd$date_sample)
-owt_df02_gb04_mrgd$PH <- na.interpolation(x, option = "linear")
+# XMS
+print(ggplot(df_original, aes(x = date_sample, y = XMS)) +
+       geom_line() +
+       theme(axis.text.x = element_text(angle = 45, hjust = 1))+
+       scale_x_date(date_labels = "%Y-%b", breaks = date_breaks("1 month")) +ggtitle(paste0("df02_gb04_mrgd - XMS - ", "original")))
 
-x <- zoo(owt_df02_gb04_mrgd$SALINITY, owt_df02_gb04_mrgd$date_sample)
-owt_df02_gb04_mrgd$SALINITY <- na.interpolation(x, option = "linear")
+print(ggplot(copy_owt_df02_gb04_mrgd, aes(x = date_sample, y = XMS)) +
+       geom_line() +
+       theme(axis.text.x = element_text(angle = 45, hjust = 1))+
+       scale_x_date(date_labels = "%Y-%b", breaks = date_breaks("1 month")) +ggtitle(paste0("df02_gb04_mrgd - XMS - ", "na.interpolation")))
 
-x <- zoo(owt_df02_gb04_mrgd$SUSO, owt_df02_gb04_mrgd$date_sample)
-owt_df02_gb04_mrgd$SUSO <- na.interpolation(x, option = "linear")
 
-x <- zoo(owt_df02_gb04_mrgd$TEMP, owt_df02_gb04_mrgd$date_sample)
-owt_df02_gb04_mrgd$TEMP <- na.interpolation(x, option = "linear")
+# SUSO
+print(ggplot(df_original, aes(x = date_sample, y = SUSO)) +
+       geom_line() +
+       theme(axis.text.x = element_text(angle = 45, hjust = 1))+
+       scale_x_date(date_labels = "%Y-%b", breaks = date_breaks("1 month")) +ggtitle(paste0("df02_gb04_mrgd - SUSO - ", "original")))
 
-x <- zoo(owt_df02_gb04_mrgd$XMS, owt_df02_gb04_mrgd$date_sample)
-owt_df02_gb04_mrgd$XMS <- na.interpolation(x, option = "linear")
+print(ggplot(copy_owt_df02_gb04_mrgd, aes(x = date_sample, y = SUSO)) +
+       geom_line() +
+       theme(axis.text.x = element_text(angle = 45, hjust = 1))+
+       scale_x_date(date_labels = "%Y-%b", breaks = date_breaks("1 month")) +ggtitle(paste0("df02_gb04_mrgd - SUSO - ", "na.interpolation")))
 
+# DO
+print(ggplot(df_original, aes(x = date_sample, y = DO)) +
+       geom_line() +
+       theme(axis.text.x = element_text(angle = 45, hjust = 1))+
+       scale_x_date(date_labels = "%Y-%b", breaks = date_breaks("1 month")) +ggtitle(paste0("df02_gb04_mrgd - DO - ", "original")))
 
-# owt_df02_gb04_wkly
-x <- zoo(owt_df02_gb04_wkly$CHLOROPHYLL, owt_df02_gb04_wkly$date_sample)
-owt_df02_gb04_wkly$CHLOROPHYLL <- na.interpolation(x, option = "linear")
+print(ggplot(copy_owt_df02_gb04_mrgd, aes(x = date_sample, y = DO)) +
+       geom_line() +
+       theme(axis.text.x = element_text(angle = 45, hjust = 1))+
+       scale_x_date(date_labels = "%Y-%b", breaks = date_breaks("1 month")) +ggtitle(paste0("df02_gb04_mrgd - DO - ", "na.interpolation")))
 
-x <- zoo(owt_df02_gb04_wkly$DENSITY, owt_df02_gb04_wkly$date_sample)
-owt_df02_gb04_wkly$DENSITY <- na.interpolation(x, option = "linear")
 
-x <- zoo(owt_df02_gb04_wkly$DO, owt_df02_gb04_wkly$date_sample)
-owt_df02_gb04_wkly$DO <- na.interpolation(x, option = "linear")
+# ENTERO
+print(ggplot(df_original, aes(x = date_sample, y = ENTERO)) +
+       geom_line() +
+       theme(axis.text.x = element_text(angle = 45, hjust = 1))+
+       scale_x_date(date_labels = "%Y-%b", breaks = date_breaks("1 month")) +ggtitle(paste0("df02_gb04_mrgd - ENTERO - ", "original")))
 
-x <- zoo(owt_df02_gb04_wkly$ENTERO, owt_df02_gb04_wkly$date_sample)
-owt_df02_gb04_wkly$ENTERO <- na.interpolation(x, option = "linear")
+print(ggplot(copy_owt_df02_gb04_mrgd, aes(x = date_sample, y = ENTERO)) +
+       geom_line() +
+       theme(axis.text.x = element_text(angle = 45, hjust = 1))+
+       scale_x_date(date_labels = "%Y-%b", breaks = date_breaks("1 month")) +ggtitle(paste0("df02_gb04_mrgd - ENTERO - ", "na.interpolation")))
 
-x <- zoo(owt_df02_gb04_wkly$FECAL, owt_df02_gb04_wkly$date_sample)
-owt_df02_gb04_wkly$FECAL <- na.interpolation(x, option = "linear")
 
-x <- zoo(owt_df02_gb04_wkly$OG, owt_df02_gb04_wkly$date_sample)
-owt_df02_gb04_wkly$OG <- na.interpolation(x, option = "linear")
+# PH
+print(ggplot(df_original, aes(x = date_sample, y = PH)) +
+       geom_line() +
+       theme(axis.text.x = element_text(angle = 45, hjust = 1))+
+       scale_x_date(date_labels = "%Y-%b", breaks = date_breaks("1 month")) +ggtitle(paste0("df02_gb04_mrgd - PH - ", "original")))
 
-x <- zoo(owt_df02_gb04_wkly$PH, owt_df02_gb04_wkly$date_sample)
-owt_df02_gb04_wkly$PH <- na.interpolation(x, option = "linear")
+print(ggplot(copy_owt_df02_gb04_mrgd, aes(x = date_sample, y = PH)) +
+       geom_line() +
+       theme(axis.text.x = element_text(angle = 45, hjust = 1))+
+       scale_x_date(date_labels = "%Y-%b", breaks = date_breaks("1 month")) +ggtitle(paste0("df02_gb04_mrgd - PH - ", "na.interpolation")))
 
-x <- zoo(owt_df02_gb04_wkly$SALINITY, owt_df02_gb04_wkly$date_sample)
-owt_df02_gb04_wkly$SALINITY <- na.interpolation(x, option = "linear")
+# OG
+print(ggplot(df_original, aes(x = date_sample, y = OG)) +
+       geom_line() +
+       theme(axis.text.x = element_text(angle = 45, hjust = 1))+
+       scale_x_date(date_labels = "%Y-%b", breaks = date_breaks("1 month")) +ggtitle(paste0("df02_gb04_mrgd - OG - ", "original")))
 
-x <- zoo(owt_df02_gb04_wkly$SUSO, owt_df02_gb04_wkly$date_sample)
-owt_df02_gb04_wkly$SUSO <- na.interpolation(x, option = "linear")
+print(ggplot(copy_owt_df02_gb04_mrgd, aes(x = date_sample, y = OG)) +
+       geom_line() +
+       theme(axis.text.x = element_text(angle = 45, hjust = 1))+
+       scale_x_date(date_labels = "%Y-%b", breaks = date_breaks("1 month")) +ggtitle(paste0("df02_gb04_mrgd - OG - ", "na.interpolation")))
 
-x <- zoo(owt_df02_gb04_wkly$TEMP, owt_df02_gb04_wkly$date_sample)
-owt_df02_gb04_wkly$TEMP <- na.interpolation(x, option = "linear")
+###############
+copy_owt_df02_gb04_wkly <- data.frame(owt_df02_gb04_wkly)
 
-x <- zoo(owt_df02_gb04_wkly$XMS, owt_df02_gb04_wkly$date_sample)
-owt_df02_gb04_wkly$XMS <- na.interpolation(x, option = "linear")
+# copy_owt_df02_gb04_wkly
+x <- zoo(copy_owt_df02_gb04_wkly$CHLOROPHYLL, copy_owt_df02_gb04_wkly$date_sample)
+copy_owt_df02_gb04_wkly$CHLOROPHYLL <- na.interpolation(x, option = "linear")
 
+x <- zoo(copy_owt_df02_gb04_wkly$DENSITY, copy_owt_df02_gb04_wkly$date_sample)
+copy_owt_df02_gb04_wkly$DENSITY <- na.interpolation(x, option = "linear")
 
-# owt_df02_gb09_mrgd
-x <- zoo(owt_df02_gb09_mrgd$CHLOROPHYLL, owt_df02_gb09_mrgd$date_sample)
-owt_df02_gb09_mrgd$CHLOROPHYLL <- na.interpolation(x, option = "linear")
+x <- zoo(copy_owt_df02_gb04_wkly$DO, copy_owt_df02_gb04_wkly$date_sample)
+copy_owt_df02_gb04_wkly$DO <- na.interpolation(x, option = "linear")
 
-x <- zoo(owt_df02_gb09_mrgd$DENSITY, owt_df02_gb09_mrgd$date_sample)
-owt_df02_gb09_mrgd$DENSITY <- na.interpolation(x, option = "linear")
+x <- zoo(copy_owt_df02_gb04_wkly$ENTERO, copy_owt_df02_gb04_wkly$date_sample)
+copy_owt_df02_gb04_wkly$ENTERO <- na.interpolation(x, option = "linear")
 
-x <- zoo(owt_df02_gb09_mrgd$DO, owt_df02_gb09_mrgd$date_sample)
-owt_df02_gb09_mrgd$DO <- na.interpolation(x, option = "linear")
+x <- zoo(copy_owt_df02_gb04_wkly$FECAL, copy_owt_df02_gb04_wkly$date_sample)
+copy_owt_df02_gb04_wkly$FECAL <- na.interpolation(x, option = "linear")
 
-x <- zoo(owt_df02_gb09_mrgd$ENTERO, owt_df02_gb09_mrgd$date_sample)
-owt_df02_gb09_mrgd$ENTERO <- na.interpolation(x, option = "linear")
+x <- zoo(copy_owt_df02_gb04_wkly$OG, copy_owt_df02_gb04_wkly$date_sample)
+copy_owt_df02_gb04_wkly$OG <- na.interpolation(x, option = "linear")
 
-x <- zoo(owt_df02_gb09_mrgd$FECAL, owt_df02_gb09_mrgd$date_sample)
-owt_df02_gb09_mrgd$FECAL <- na.interpolation(x, option = "linear")
+x <- zoo(copy_owt_df02_gb04_wkly$PH, copy_owt_df02_gb04_wkly$date_sample)
+copy_owt_df02_gb04_wkly$PH <- na.interpolation(x, option = "linear")
 
-x <- zoo(owt_df02_gb09_mrgd$OG, owt_df02_gb09_mrgd$date_sample)
-owt_df02_gb09_mrgd$OG <- na.interpolation(x, option = "linear")
+x <- zoo(copy_owt_df02_gb04_wkly$SALINITY, copy_owt_df02_gb04_wkly$date_sample)
+copy_owt_df02_gb04_wkly$SALINITY <- na.interpolation(x, option = "linear")
 
-x <- zoo(owt_df02_gb09_mrgd$PH, owt_df02_gb09_mrgd$date_sample)
-owt_df02_gb09_mrgd$PH <- na.interpolation(x, option = "linear")
+x <- zoo(copy_owt_df02_gb04_wkly$SUSO, copy_owt_df02_gb04_wkly$date_sample)
+copy_owt_df02_gb04_wkly$SUSO <- na.interpolation(x, option = "linear")
 
-x <- zoo(owt_df02_gb09_mrgd$SALINITY, owt_df02_gb09_mrgd$date_sample)
-owt_df02_gb09_mrgd$SALINITY <- na.interpolation(x, option = "linear")
+x <- zoo(copy_owt_df02_gb04_wkly$TEMP, copy_owt_df02_gb04_wkly$date_sample)
+copy_owt_df02_gb04_wkly$TEMP <- na.interpolation(x, option = "linear")
 
-x <- zoo(owt_df02_gb09_mrgd$SUSO, owt_df02_gb09_mrgd$date_sample)
-owt_df02_gb09_mrgd$SUSO <- na.interpolation(x, option = "linear")
+x <- zoo(copy_owt_df02_gb04_wkly$XMS, copy_owt_df02_gb04_wkly$date_sample)
+copy_owt_df02_gb04_wkly$XMS <- na.interpolation(x, option = "linear")
 
-x <- zoo(owt_df02_gb09_mrgd$TEMP, owt_df02_gb09_mrgd$date_sample)
-owt_df02_gb09_mrgd$TEMP <- na.interpolation(x, option = "linear")
 
-x <- zoo(owt_df02_gb09_mrgd$XMS, owt_df02_gb09_mrgd$date_sample)
-owt_df02_gb09_mrgd$XMS <- na.interpolation(x, option = "linear")
+###############
+copy_owt_df02_gb09_mrgd <- data.frame(owt_df02_gb09_mrgd)
+# copy_owt_df02_gb09_mrgd
+x <- zoo(copy_owt_df02_gb09_mrgd$CHLOROPHYLL, copy_owt_df02_gb09_mrgd$date_sample)
+copy_owt_df02_gb09_mrgd$CHLOROPHYLL <- na.interpolation(x, option = "linear")
 
+x <- zoo(copy_owt_df02_gb09_mrgd$DENSITY, copy_owt_df02_gb09_mrgd$date_sample)
+copy_owt_df02_gb09_mrgd$DENSITY <- na.interpolation(x, option = "linear")
 
-# owt_df02_gb09_wkly <- impute_missing_values(owt_df02_gb09_wkly)
-x <- zoo(owt_df02_gb09_wkly$CHLOROPHYLL, owt_df02_gb09_wkly$date_sample)
-owt_df02_gb09_wkly$CHLOROPHYLL <- na.interpolation(x, option = "linear")
 
-x <- zoo(owt_df02_gb09_wkly$DENSITY, owt_df02_gb09_wkly$date_sample)
-owt_df02_gb09_wkly$DENSITY <- na.interpolation(x, option = "linear")
+x <- zoo(copy_owt_df02_gb09_mrgd$DO, copy_owt_df02_gb09_mrgd$date_sample)
+copy_owt_df02_gb09_mrgd$DO <- na.interpolation(x, option = "linear")
 
-x <- zoo(owt_df02_gb09_wkly$DO, owt_df02_gb09_wkly$date_sample)
-owt_df02_gb09_wkly$DO <- na.interpolation(x, option = "linear")
+x <- zoo(copy_owt_df02_gb09_mrgd$ENTERO, copy_owt_df02_gb09_mrgd$date_sample)
+copy_owt_df02_gb09_mrgd$ENTERO <- na.interpolation(x, option = "linear")
 
-x <- zoo(owt_df02_gb09_wkly$ENTERO, owt_df02_gb09_wkly$date_sample)
-owt_df02_gb09_wkly$ENTERO <- na.interpolation(x, option = "linear")
+x <- zoo(copy_owt_df02_gb09_mrgd$FECAL, copy_owt_df02_gb09_mrgd$date_sample)
+copy_owt_df02_gb09_mrgd$FECAL <- na.interpolation(x, option = "linear")
 
-x <- zoo(owt_df02_gb09_wkly$FECAL, owt_df02_gb09_wkly$date_sample)
-owt_df02_gb09_wkly$FECAL <- na.interpolation(x, option = "linear")
+x <- zoo(copy_owt_df02_gb09_mrgd$OG, copy_owt_df02_gb09_mrgd$date_sample)
+copy_owt_df02_gb09_mrgd$OG <- na.interpolation(x, option = "linear")
 
-x <- zoo(owt_df02_gb09_wkly$OG, owt_df02_gb09_wkly$date_sample)
-owt_df02_gb09_wkly$OG <- na.interpolation(x, option = "linear")
+x <- zoo(copy_owt_df02_gb09_mrgd$PH, copy_owt_df02_gb09_mrgd$date_sample)
+copy_owt_df02_gb09_mrgd$PH <- na.interpolation(x, option = "linear")
 
-x <- zoo(owt_df02_gb09_wkly$PH, owt_df02_gb09_wkly$date_sample)
-owt_df02_gb09_wkly$PH <- na.interpolation(x, option = "linear")
+x <- zoo(copy_owt_df02_gb09_mrgd$SALINITY, copy_owt_df02_gb09_mrgd$date_sample)
+copy_owt_df02_gb09_mrgd$SALINITY <- na.interpolation(x, option = "linear")
 
-x <- zoo(owt_df02_gb09_wkly$SALINITY, owt_df02_gb09_wkly$date_sample)
-owt_df02_gb09_wkly$SALINITY <- na.interpolation(x, option = "linear")
+x <- zoo(copy_owt_df02_gb09_mrgd$SUSO, copy_owt_df02_gb09_mrgd$date_sample)
+copy_owt_df02_gb09_mrgd$SUSO <- na.interpolation(x, option = "linear")
 
-x <- zoo(owt_df02_gb09_wkly$SUSO, owt_df02_gb09_wkly$date_sample)
-owt_df02_gb09_wkly$SUSO <- na.interpolation(x, option = "linear")
+x <- zoo(copy_owt_df02_gb09_mrgd$TEMP, copy_owt_df02_gb09_mrgd$date_sample)
+copy_owt_df02_gb09_mrgd$TEMP <- na.interpolation(x, option = "linear")
 
-x <- zoo(owt_df02_gb09_wkly$TEMP, owt_df02_gb09_wkly$date_sample)
-owt_df02_gb09_wkly$TEMP <- na.interpolation(x, option = "linear")
+x <- zoo(copy_owt_df02_gb09_mrgd$XMS, copy_owt_df02_gb09_mrgd$date_sample)
+copy_owt_df02_gb09_mrgd$XMS <- na.interpolation(x, option = "linear")
 
-x <- zoo(owt_df02_gb09_wkly$XMS, owt_df02_gb09_wkly$date_sample)
-owt_df02_gb09_wkly$XMS <- na.interpolation(x, option = "linear")
 
 
-# owt_df02_gb07_mrgd
-x <- zoo(owt_df02_gb07_mrgd$CHLOROPHYLL, owt_df02_gb07_mrgd$date_sample)
-owt_df02_gb07_mrgd$CHLOROPHYLL <- na.interpolation(x, option = "linear")
+###############
+copy_owt_df02_gb09_wkly <- data.frame(owt_df02_gb09_wkly)
+x <- zoo(copy_owt_df02_gb09_wkly$CHLOROPHYLL, copy_owt_df02_gb09_wkly$date_sample)
+copy_owt_df02_gb09_wkly$CHLOROPHYLL <- na.interpolation(x, option = "linear")
 
-x <- zoo(owt_df02_gb07_mrgd$DENSITY, owt_df02_gb07_mrgd$date_sample)
-owt_df02_gb07_mrgd$DENSITY <- na.interpolation(x, option = "linear")
+x <- zoo(copy_owt_df02_gb09_wkly$DENSITY, copy_owt_df02_gb09_wkly$date_sample)
+copy_owt_df02_gb09_wkly$DENSITY <- na.interpolation(x, option = "linear")
 
-x <- zoo(owt_df02_gb07_mrgd$DO, owt_df02_gb07_mrgd$date_sample)
-owt_df02_gb07_mrgd$DO <- na.interpolation(x, option = "linear")
+x <- zoo(copy_owt_df02_gb09_wkly$DO, copy_owt_df02_gb09_wkly$date_sample)
+copy_owt_df02_gb09_wkly$DO <- na.interpolation(x, option = "linear")
 
-x <- zoo(owt_df02_gb07_mrgd$ENTERO, owt_df02_gb07_mrgd$date_sample)
-owt_df02_gb07_mrgd$ENTERO <- na.interpolation(x, option = "linear")
+x <- zoo(copy_owt_df02_gb09_wkly$ENTERO, copy_owt_df02_gb09_wkly$date_sample)
+copy_owt_df02_gb09_wkly$ENTERO <- na.interpolation(x, option = "linear")
 
-x <- zoo(owt_df02_gb07_mrgd$FECAL, owt_df02_gb07_mrgd$date_sample)
-owt_df02_gb07_mrgd$FECAL <- na.interpolation(x, option = "linear")
+x <- zoo(copy_owt_df02_gb09_wkly$FECAL, copy_owt_df02_gb09_wkly$date_sample)
+copy_owt_df02_gb09_wkly$FECAL <- na.interpolation(x, option = "linear")
 
-x <- zoo(owt_df02_gb07_mrgd$OG, owt_df02_gb07_mrgd$date_sample)
-owt_df02_gb07_mrgd$OG <- na.interpolation(x, option = "linear")
+x <- zoo(copy_owt_df02_gb09_wkly$OG, copy_owt_df02_gb09_wkly$date_sample)
+copy_owt_df02_gb09_wkly$OG <- na.interpolation(x, option = "linear")
 
-x <- zoo(owt_df02_gb07_mrgd$PH, owt_df02_gb07_mrgd$date_sample)
-owt_df02_gb07_mrgd$PH <- na.interpolation(x, option = "linear")
+x <- zoo(copy_owt_df02_gb09_wkly$PH, copy_owt_df02_gb09_wkly$date_sample)
+copy_owt_df02_gb09_wkly$PH <- na.interpolation(x, option = "linear")
 
-x <- zoo(owt_df02_gb07_mrgd$SALINITY, owt_df02_gb07_mrgd$date_sample)
-owt_df02_gb07_mrgd$SALINITY <- na.interpolation(x, option = "linear")
+x <- zoo(copy_owt_df02_gb09_wkly$SALINITY, copy_owt_df02_gb09_wkly$date_sample)
+copy_owt_df02_gb09_wkly$SALINITY <- na.interpolation(x, option = "linear")
 
-x <- zoo(owt_df02_gb07_mrgd$SUSO, owt_df02_gb07_mrgd$date_sample)
-owt_df02_gb07_mrgd$SUSO <- na.interpolation(x, option = "linear")
+x <- zoo(copy_owt_df02_gb09_wkly$SUSO, copy_owt_df02_gb09_wkly$date_sample)
+copy_owt_df02_gb09_wkly$SUSO <- na.interpolation(x, option = "linear")
 
-x <- zoo(owt_df02_gb07_mrgd$TEMP, owt_df02_gb07_mrgd$date_sample)
-owt_df02_gb07_mrgd$TEMP <- na.interpolation(x, option = "linear")
+x <- zoo(copy_owt_df02_gb09_wkly$TEMP, copy_owt_df02_gb09_wkly$date_sample)
+copy_owt_df02_gb09_wkly$TEMP <- na.interpolation(x, option = "linear")
 
-x <- zoo(owt_df02_gb07_mrgd$XMS, owt_df02_gb07_mrgd$date_sample)
-owt_df02_gb07_mrgd$XMS <- na.interpolation(x, option = "linear")
+x <- zoo(copy_owt_df02_gb09_wkly$XMS, copy_owt_df02_gb09_wkly$date_sample)
+copy_owt_df02_gb09_wkly$XMS <- na.interpolation(x, option = "linear")
 
 
-# owt_df02_gb07_mrgd
-x <- zoo(owt_df02_gb07_wkly$CHLOROPHYLL, owt_df02_gb07_wkly$date_sample)
-owt_df02_gb07_wkly$CHLOROPHYLL <- na.interpolation(x, option = "linear")
+###############
+copy_owt_df02_gb07_mrgd <- data.frame(owt_df02_gb07_mrgd)
 
-x <- zoo(owt_df02_gb07_wkly$DENSITY, owt_df02_gb07_wkly$date_sample)
-owt_df02_gb07_wkly$DENSITY <- na.interpolation(x, option = "linear")
+x <- zoo(copy_owt_df02_gb07_mrgd$CHLOROPHYLL, copy_owt_df02_gb07_mrgd$date_sample)
+copy_owt_df02_gb07_mrgd$CHLOROPHYLL <- na.interpolation(x, option = "linear")
 
-x <- zoo(owt_df02_gb07_wkly$DO, owt_df02_gb07_wkly$date_sample)
-owt_df02_gb07_wkly$DO <- na.interpolation(x, option = "linear")
+x <- zoo(copy_owt_df02_gb07_mrgd$DENSITY, copy_owt_df02_gb07_mrgd$date_sample)
+copy_owt_df02_gb07_mrgd$DENSITY <- na.interpolation(x, option = "linear")
 
-x <- zoo(owt_df02_gb07_wkly$ENTERO, owt_df02_gb07_wkly$date_sample)
-owt_df02_gb07_wkly$ENTERO <- na.interpolation(x, option = "linear")
+x <- zoo(copy_owt_df02_gb07_mrgd$DO, copy_owt_df02_gb07_mrgd$date_sample)
+copy_owt_df02_gb07_mrgd$DO <- na.interpolation(x, option = "linear")
 
-x <- zoo(owt_df02_gb07_wkly$FECAL, owt_df02_gb07_wkly$date_sample)
-owt_df02_gb07_wkly$FECAL <- na.interpolation(x, option = "linear")
+x <- zoo(copy_owt_df02_gb07_mrgd$ENTERO, copy_owt_df02_gb07_mrgd$date_sample)
+copy_owt_df02_gb07_mrgd$ENTERO <- na.interpolation(x, option = "linear")
 
-x <- zoo(owt_df02_gb07_wkly$OG, owt_df02_gb07_wkly$date_sample)
-owt_df02_gb07_wkly$OG <- na.interpolation(x, option = "linear")
+x <- zoo(copy_owt_df02_gb07_mrgd$FECAL, copy_owt_df02_gb07_mrgd$date_sample)
+copy_owt_df02_gb07_mrgd$FECAL <- na.interpolation(x, option = "linear")
 
-x <- zoo(owt_df02_gb07_wkly$PH, owt_df02_gb07_wkly$date_sample)
-owt_df02_gb07_wkly$PH <- na.interpolation(x, option = "linear")
+x <- zoo(copy_owt_df02_gb07_mrgd$OG, copy_owt_df02_gb07_mrgd$date_sample)
+copy_owt_df02_gb07_mrgd$OG <- na.interpolation(x, option = "linear")
 
-x <- zoo(owt_df02_gb07_wkly$SALINITY, owt_df02_gb07_wkly$date_sample)
-owt_df02_gb07_wkly$SALINITY <- na.interpolation(x, option = "linear")
+x <- zoo(copy_owt_df02_gb07_mrgd$PH, copy_owt_df02_gb07_mrgd$date_sample)
+copy_owt_df02_gb07_mrgd$PH <- na.interpolation(x, option = "linear")
 
-x <- zoo(owt_df02_gb07_wkly$SUSO, owt_df02_gb07_wkly$date_sample)
-owt_df02_gb07_wkly$SUSO <- na.interpolation(x, option = "linear")
+x <- zoo(copy_owt_df02_gb07_mrgd$SALINITY, copy_owt_df02_gb07_mrgd$date_sample)
+copy_owt_df02_gb07_mrgd$SALINITY <- na.interpolation(x, option = "linear")
 
-x <- zoo(owt_df02_gb07_wkly$TEMP, owt_df02_gb07_wkly$date_sample)
-owt_df02_gb07_wkly$TEMP <- na.interpolation(x, option = "linear")
+x <- zoo(copy_owt_df02_gb07_mrgd$SUSO, copy_owt_df02_gb07_mrgd$date_sample)
+copy_owt_df02_gb07_mrgd$SUSO <- na.interpolation(x, option = "linear")
 
-x <- zoo(owt_df02_gb07_wkly$XMS, owt_df02_gb07_wkly$date_sample)
-owt_df02_gb07_wkly$XMS <- na.interpolation(x, option = "linear")
+x <- zoo(copy_owt_df02_gb07_mrgd$TEMP, copy_owt_df02_gb07_mrgd$date_sample)
+copy_owt_df02_gb07_mrgd$TEMP <- na.interpolation(x, option = "linear")
+
+x <- zoo(copy_owt_df02_gb07_mrgd$XMS, copy_owt_df02_gb07_mrgd$date_sample)
+copy_owt_df02_gb07_mrgd$XMS <- na.interpolation(x, option = "linear")
+
+
+###############
+copy_owt_df02_gb07_wkly <- data.frame(owt_df02_gb07_wkly)
+
+x <- zoo(copy_owt_df02_gb07_wkly$CHLOROPHYLL, copy_owt_df02_gb07_wkly$date_sample)
+copy_owt_df02_gb07_wkly$CHLOROPHYLL <- na.interpolation(x, option = "linear")
+
+x <- zoo(copy_owt_df02_gb07_wkly$DENSITY, copy_owt_df02_gb07_wkly$date_sample)
+copy_owt_df02_gb07_wkly$DENSITY <- na.interpolation(x, option = "linear")
+
+x <- zoo(copy_owt_df02_gb07_wkly$DO, copy_owt_df02_gb07_wkly$date_sample)
+copy_owt_df02_gb07_wkly$DO <- na.interpolation(x, option = "linear")
+
+x <- zoo(copy_owt_df02_gb07_wkly$ENTERO, copy_owt_df02_gb07_wkly$date_sample)
+copy_owt_df02_gb07_wkly$ENTERO <- na.interpolation(x, option = "linear")
+
+x <- zoo(copy_owt_df02_gb07_wkly$FECAL, copy_owt_df02_gb07_wkly$date_sample)
+copy_owt_df02_gb07_wkly$FECAL <- na.interpolation(x, option = "linear")
+
+x <- zoo(copy_owt_df02_gb07_wkly$OG, copy_owt_df02_gb07_wkly$date_sample)
+copy_owt_df02_gb07_wkly$OG <- na.interpolation(x, option = "linear")
+
+x <- zoo(copy_owt_df02_gb07_wkly$PH, copy_owt_df02_gb07_wkly$date_sample)
+copy_owt_df02_gb07_wkly$PH <- na.interpolation(x, option = "linear")
+
+x <- zoo(copy_owt_df02_gb07_wkly$SALINITY, copy_owt_df02_gb07_wkly$date_sample)
+copy_owt_df02_gb07_wkly$SALINITY <- na.interpolation(x, option = "linear")
+
+x <- zoo(copy_owt_df02_gb07_wkly$SUSO, copy_owt_df02_gb07_wkly$date_sample)
+copy_owt_df02_gb07_wkly$SUSO <- na.interpolation(x, option = "linear")
+
+x <- zoo(copy_owt_df02_gb07_wkly$TEMP, copy_owt_df02_gb07_wkly$date_sample)
+copy_owt_df02_gb07_wkly$TEMP <- na.interpolation(x, option = "linear")
+
+x <- zoo(copy_owt_df02_gb07_wkly$XMS, copy_owt_df02_gb07_wkly$date_sample)
+copy_owt_df02_gb07_wkly$XMS <- na.interpolation(x, option = "linear")
+
+
+
+
 
 
 ```
@@ -863,10 +975,10 @@ owt_df02_gb07_wkly$XMS <- na.interpolation(x, option = "linear")
 library(padr)
 library(dplyr)
 
-owt_df02_gb04_mrgd %>% pad()
+copy_owt_df02_gb04_mrgd %>% pad()
 
 ####### 5 YEAR - 1996 - 2001 #######################################
-ts_chlorophyll <- ts(owt_df02_gb04_mrgd$CHLOROPHYLL, start = c(1996, 1), freq = 365)
+ts_chlorophyll <- ts(copy_owt_df02_gb04_mrgd$CHLOROPHYLL, start = c(1996, 1), freq = 365)
 ts_1996_2001_chl <- window(ts_chlorophyll, start=c(1996, 1), end=c(2001, 1))
 stl_chl <- stl(ts_1996_2001_chl, s.window="periodic")
 #labels.chart = seq(as.Date("1990-11-15"), as.Date("2021-12-29"), by = "weeks")
@@ -874,7 +986,7 @@ plot(stl_chl)
 mtext("CHLOROPHYLL", side=3, line = -5)
 
 
-ts_do <- ts(owt_df02_gb04_mrgd$DO, start = c(1996, 1), freq = 365)
+ts_do <- ts(copy_owt_df02_gb04_mrgd$DO, start = c(1996, 1), freq = 365)
 ts_1996_2001_do <- window(ts_do, start=c(1996, 1), end=c(2001, 1))
 stl_do <- stl(ts_1996_2001_do, s.window="periodic")
 #labels.chart = seq(as.Date("1990-11-15"), as.Date("2021-12-29"), by = "weeks")
@@ -882,7 +994,7 @@ plot(stl_do)
 mtext("DO", side=3, line = -5)
 
 
-ts_ent <- ts(owt_df02_gb04_mrgd$ENTERO, start = c(1996, 1), freq = 365)
+ts_ent <- ts(copy_owt_df02_gb04_mrgd$ENTERO, start = c(1996, 1), freq = 365)
 ts_1996_2001_ent <- window(ts_ent, start=c(1996, 1), end=c(2001, 1))
 stl_ent <- stl(ts_1996_2001_ent, s.window="periodic")
 #labels.chart = seq(as.Date("1990-11-15"), as.Date("2021-12-29"), by = "weeks")
@@ -890,7 +1002,7 @@ plot(stl_ent)
 mtext("ENTERO", side=3, line = -5)
 
 
-ts_fecal <- ts(owt_df02_gb04_mrgd$FECAL, start = c(1996, 1), freq = 365)
+ts_fecal <- ts(copy_owt_df02_gb04_mrgd$FECAL, start = c(1996, 1), freq = 365)
 ts_1996_2001_fecal <- window(ts_fecal, start=c(1996, 1), end=c(2001, 1))
 stl_fecal <- stl(ts_1996_2001_fecal, s.window="periodic")
 #labels.chart = seq(as.Date("1990-11-15"), as.Date("2021-12-29"), by = "weeks")
@@ -898,7 +1010,7 @@ plot(stl_fecal)
 mtext("FECAL", side=3, line = -5)
 
 
-ts_og <- ts(owt_df02_gb04_mrgd$OG, start = c(1996, 1), freq = 365)
+ts_og <- ts(copy_owt_df02_gb04_mrgd$OG, start = c(1996, 1), freq = 365)
 ts_1996_2001_og <- window(ts_og, start=c(1996, 1), end=c(2001, 1))
 stl_og <- stl(ts_1996_2001_og, s.window="periodic")
 #labels.chart = seq(as.Date("1990-11-15"), as.Date("2021-12-29"), by = "weeks")
@@ -906,7 +1018,7 @@ plot(stl_og)
 mtext("OG", side=3, line = -5)
 
 
-ts_ph <- ts(owt_df02_gb04_mrgd$PH, start = c(1996, 1), freq = 365)
+ts_ph <- ts(copy_owt_df02_gb04_mrgd$PH, start = c(1996, 1), freq = 365)
 ts_1996_2001_ph <- window(ts_ph, start=c(1996, 1), end=c(2001, 1))
 stl_ph <- stl(ts_1996_2001_ph, s.window="periodic")
 #labels.chart = seq(as.Date("1990-11-15"), as.Date("2021-12-29"), by = "weeks")
@@ -914,7 +1026,7 @@ plot(stl_ph)
 mtext("PH", side=3, line = -5)
 
 
-ts_salinity <- ts(owt_df02_gb04_mrgd$SALINITY, start = c(1996, 1), freq = 365)
+ts_salinity <- ts(copy_owt_df02_gb04_mrgd$SALINITY, start = c(1996, 1), freq = 365)
 ts_1996_2001_salinity <- window(ts_salinity, start=c(1996, 1), end=c(2001, 1))
 stl_salinity <- stl(ts_1996_2001_salinity, s.window="periodic")
 #labels.chart = seq(as.Date("1990-11-15"), as.Date("2021-12-29"), by = "weeks")
@@ -922,7 +1034,7 @@ plot(stl_salinity)
 mtext("SALINITY", side=3, line = -5)
 
 
-ts_suso <- ts(owt_df02_gb04_mrgd$SUSO, start = c(1996, 1), freq = 365)
+ts_suso <- ts(copy_owt_df02_gb04_mrgd$SUSO, start = c(1996, 1), freq = 365)
 ts_1996_2001_suso <- window(ts_suso, start=c(1996, 1), end=c(2001, 1))
 stl_suso <- stl(ts_1996_2001_suso, s.window="periodic")
 #labels.chart = seq(as.Date("1990-11-15"), as.Date("2021-12-29"), by = "weeks")
@@ -930,7 +1042,7 @@ plot(stl_suso)
 mtext("SUSO", side=3, line = -5)
 
 
-ts_temp <- ts(owt_df02_gb04_mrgd$TEMP, start = c(1996, 1), freq = 365)
+ts_temp <- ts(copy_owt_df02_gb04_mrgd$TEMP, start = c(1996, 1), freq = 365)
 ts_1996_2001_temp <- window(ts_temp, start=c(1996, 1), end=c(2001, 1))
 stl_temp <- stl(ts_1996_2001_temp, s.window="periodic")
 #labels.chart = seq(as.Date("1990-11-15"), as.Date("2021-12-29"), by = "weeks")
@@ -938,7 +1050,7 @@ plot(stl_temp)
 mtext("TEMP", side=3, line = -5)
 
 
-ts_xms <- ts(owt_df02_gb04_mrgd$XMS, start = c(1996, 1), freq = 365)
+ts_xms <- ts(copy_owt_df02_gb04_mrgd$XMS, start = c(1996, 1), freq = 365)
 ts_1996_2001_xms <- window(ts_xms, start=c(1996, 1), end=c(2001, 1))
 stl_xms <- stl(ts_1996_2001_xms, s.window="periodic")
 #labels.chart = seq(as.Date("1990-11-15"), as.Date("2021-12-29"), by = "weeks")
@@ -951,8 +1063,10 @@ mtext("XMS", side=3, line = -5)
 
 ```{r CC-EDA-STL-1YEARPERIOD}
 
+#https://cran.r-project.org/web/packages/stR/vignettes/stRvignette.html
+
 ####### 1 YEAR - 2001 #######################################
-ts_chlorophyll <- ts(owt_df02_gb04_mrgd$CHLOROPHYLL, start = c(2001, 1), freq = 365)
+ts_chlorophyll <- ts(copy_owt_df02_gb04_mrgd$CHLOROPHYLL, start = c(2001, 1), freq = 365)
 ts_1996_2001_chl <- window(ts_chlorophyll, start=c(2001, 1), end=c(2001, 2))
 plot(ts_1996_2001_chl)
 stl_chl <- stl(ts_1996_2001_chl, s.window="periodic")
@@ -968,9 +1082,9 @@ library(forecast)
 
 # All parameters exhibited seasonal cycles within a year range, so
 # it would make sense to have several years worth of datapoints for the training period.  This set below can be used for all parameters.
-train <- head(owt_df02_gb04_mrgd, round(NROW(owt_df02_gb04_mrgd) * 0.6))
-h <- length(owt_df02_gb04_mrgd) - NROW(train)
-test <- tail(owt_df02_gb04_mrgd, h)
+train <- head(copy_owt_df02_gb04_mrgd, round(NROW(copy_owt_df02_gb04_mrgd) * 0.6))
+h <- length(copy_owt_df02_gb04_mrgd) - NROW(train)
+test <- tail(copy_owt_df02_gb04_mrgd, h)
 
 ```
 
