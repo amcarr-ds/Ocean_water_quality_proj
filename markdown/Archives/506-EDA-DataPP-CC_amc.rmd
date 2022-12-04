@@ -1,0 +1,1214 @@
+---
+title: "Appendix A - ADS506-01-FA22 - Final Project"
+author: "Team 1"
+date: "12/05/2022"
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+header-includes:
+- \usepackage{fvextra}
+- \DefineVerbatimEnvironment{Highlighting}{Verbatim}{breaklines,commandchars=\\\{\}}
+- \usepackage{pdflscape}
+- \newcommand{\blandscape}{\begin{landscape}}
+- \newcommand{\elandscape}{\end{landscape}}
+---
+
+## RMarkdown global setup
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r global.options, include=TRUE}
+knitr::opts_chunk$set(fig.align = 'center')
+```
+
+```{r lib, message=FALSE, warning=FALSE}
+library(AppliedPredictiveModeling)
+library(BioStatR)
+library(car)
+library(caret)
+library(class)
+library(corrplot)
+library(datasets)
+library(e1071)
+library(here)
+library(Hmisc)
+library(imputeTS)
+library(lubridate)
+library(mlbench)
+library(gridExtra)
+library(psych)
+library(randomForest)
+library(RANN)
+library(reshape2)
+library(rpart)
+library(rpart.plot)
+library(scales)
+library(tidyverse)
+library(timetk)
+library(tsibble)
+library(tseries)
+library(zoo)
+
+set.seed(1699)
+```
+
+## Create custom function to generate boxplots and descriptive statistics for continuous variables
+```{r, warning=FALSE}
+box_comp <- function(xcol = c(),
+                     df = NA,
+                     rtn_met = TRUE,
+                     grph_title = "All",
+                     box = TRUE) {
+  # Define function to produce formatted boxplots
+  sig <- 3
+  metrics_df01 <- data.frame(metric = c("",
+                                        "Total N:",
+                                        "Count",
+                                        "NA Count",
+                                        "Mean",
+                                        "Median",
+                                        "Standard Deviation",
+                                        "Variance",
+                                        "Range",
+                                        "Min",
+                                        "Max",
+                                        "25th Percentile",
+                                        "75th Percentile",
+                                        "Subset w/o Outliers:",
+                                        "Count",
+                                        "%",
+                                        "Outlier %",
+                                        "NA Count",
+                                        "Mean",
+                                        "Median",
+                                        "Standard Deviation",
+                                        "Variance",
+                                        "Range",
+                                        "Min",
+                                        "Max"
+                                        ))
+  for(var in xcol) {
+    df_s1 <- df[, var]
+    df_s1s1 <-data.frame(df_s1)
+    df_s1_fit <- preProcess(df_s1s1,
+                            method = c("center", "scale"))
+    df_s1_trans <- predict(df_s1_fit, df_s1s1)
+
+    # Calculate quartiles
+    var_iqr_lim <- IQR(df_s1) * 1.5
+    var_q1 <- quantile(df_s1, probs = c(.25))
+    var_otlow <- var_q1 - var_iqr_lim
+    var_q3 <- quantile(df_s1, probs = c(.75))
+    var_othigh <- var_q3 + var_iqr_lim
+    
+    # Subset non-outlier data 
+    var_non_otlr_df01 <- subset(df, (abs(df_s1_trans) <= 3))
+    #var_non_otlr_df01 <- subset(df, (df_s1 > var_otlow & df_s1 < var_othigh))
+    df_s2 <- var_non_otlr_df01[, var]
+
+    # Begin calculating measures of centrality & dispersion
+    var_mean <- mean(df_s1, na.remove = TRUE)
+    var_non_otlr_df01_trunc_mean <- mean(df_s2, na.remove = TRUE)
+    var_med <- median(df_s1)
+    var_non_otlr_df01_trunc_med <- median(df_s2)
+    var_mode <- mode(df_s1)
+    var_non_otlr_df01_trunc_mode <- mode(df_s2)
+    var_stde <- sd(df_s1)
+    var_non_otlr_df01_trunc_stde <- sd(df_s2)
+    var_vari <- var(df_s1)
+    var_non_otlr_df01_trunc_vari <- var(df_s2)
+    var01_min <- min(df[, var])
+    var01_max <- max(df[, var])
+    var01_range <- var01_max - var01_min
+    var02_min <- min(var_non_otlr_df01[, var])
+    var02_max <- max(var_non_otlr_df01[, var])
+    var02_range <- var02_max - var02_min
+    
+    # Configure y-axis min & max to sync graphs
+    plot_min <- min(var01_min, var02_min)
+    plot_max <- max(var01_max, var02_max)
+    nonoutlier_perc <- round((as.numeric(dim(var_non_otlr_df01)[1] / as.numeric(dim(df)[1]))) * 100, 1)
+    
+    # Fill in metrics table
+    measure_val01 <- c(paste0("Variable: ", var),
+                       "",
+                       as.character(dim(df)[1]),
+                       sum(is.na(df_s1)),
+                       round(var_mean, sig),
+                       round(var_med, sig),
+                       round(var_stde, sig),
+                       round(var_vari, sig),
+                       round(var01_range, sig),
+                       round(var01_min, sig),
+                       round(var01_max, sig),
+                       round(var_q1, sig),
+                       round(var_q3, sig),
+                       "",
+                       as.character(dim(var_non_otlr_df01)[1]),
+                       paste0(nonoutlier_perc, "%"),
+                       paste0(round(100 - nonoutlier_perc, 1), "%"),
+                       sum(is.na(df_s2)),
+                       round(var_non_otlr_df01_trunc_mean, sig),
+                       round(var_non_otlr_df01_trunc_med, sig),
+                       round(var_non_otlr_df01_trunc_stde, sig),
+                       round(var_non_otlr_df01_trunc_vari, sig),
+                       round(var02_range, sig),
+                       round(var02_min, sig),
+                       round(var02_max, sig)
+                       )
+    
+    var_name <- paste0("Variable: ", var)
+    metrics_df01[, ncol(metrics_df01) + 1] <- measure_val01
+}
+  # Format boxplot titles based on number of plots
+  if(box == TRUE) {
+    if(length(xcol == 1)) {
+      boxplot(df,
+              ylab = "Parameter Values",
+              main = paste0("Boxplot for ", xcol, " (", grph_title, ")"))
+    }
+    else {
+      boxplot(df,
+              ylab = "Parameter Values",
+              main = paste0("Boxplot for Multiple Parameters", " (", grph_title, ")"))
+      
+    }
+  }
+  # Return and print metrics table(s)
+  if(rtn_met == TRUE) {
+    print(metrics_df01)
+    return(metrics_df01)
+  }
+}
+```
+
+## Import and merge Datasets
+```{r, warning=FALSE}
+# Import 4 separate CSV files
+curr_dir01 <- here("data/Ocean Water/water_quality_1990_1999_datasd.csv")
+curr_dir01
+curr_dir02 <- here("data/Ocean Water/water_quality_2000_2010_datasd.csv")
+curr_dir02
+curr_dir03 <- here("data/Ocean Water/water_quality_2011_2019_datasd.csv")
+curr_dir03
+curr_dir04 <- here("data/Ocean Water/water_quality_2020_2021_datasd.csv")
+curr_dir04
+
+#setwd('C:/Users/Connie/Documents/Masters Applied Data Science USD/506/Week2/Final Project/Ocean WAter')
+
+#owt_df01a <- read_csv("water_quality_1990_1999_datasd.csv", col_types = cols(date_sample=col_date("%Y-%m-%d")))
+#owt_df01b <- read_csv("water_quality_2000_2010_datasd.csv", col_types = cols(date_sample=col_date("%Y-%m-%d")))
+#owt_df01c <- read_csv("water_quality_2011_2019_datasd.csv", col_types = cols(date_sample=col_date("%Y-%m-%d")))
+#owt_df01d <- read_csv("water_quality_2020_2021_datasd.csv", col_types = cols(date_sample=col_date("%Y-%m-%d")))
+
+owt_df01a <- read.csv(curr_dir01, header = TRUE, sep = ",")
+owt_df01b <- read.csv(curr_dir02, header = TRUE, sep = ",")
+owt_df01c <- read.csv(curr_dir03, header = TRUE, sep = ",")
+owt_df01d <- read.csv(curr_dir04, header = TRUE, sep = ",")
+
+
+# Merge 4 seperate dataframes into 1
+owt_df01 <- rbind(owt_df01a, owt_df01b, owt_df01c, owt_df01d)
+
+# Citation: https://gist.github.com/makexu93/05ef0f34306d3ab6c9ca8ddcd702cee1
+owt_df01 <- owt_df01[order(owt_df01$date_sample, decreasing = FALSE), ]
+row.names(owt_df01) <- NULL
+
+print(head(owt_df01, 17))
+describe(owt_df01)
+
+#write.csv(owt_df01, "C:/Users/acarr/Sync/Programming/Python and R/ADS Markdown Files/ADS-506 Markdown/Final Project/data/Ocean Water/ocean_df01.csv")
+```
+
+## Factorize and format column types; print NA counts
+```{r}
+# List of parameter values
+param_lst01 <- c("CHLOROPHYLL",
+                 "DENSITY", 
+                 "DO", 
+                 "ENTERO", 
+                 "FECAL", 
+                 "OG", 
+                 "PH", 
+                 "SALINITY", 
+                 "SUSO", 
+                 "TEMP", 
+                 "TOTAL", 
+                 "XMS")
+
+# List of col names
+col_lst01 <- c("sample",
+               "station",
+               "date_sample",
+               "time",
+               "project",
+               "parameter",
+               "qualifier",
+               "units")
+
+# Citation: https://www.geeksforgeeks.org/find-columns-and-rows-with-na-in-r-dataframe/
+owt_df02 <- owt_df01
+for(c in col_lst01) {
+  owt_df02[, c] <- as.factor(owt_df02[, c] )
+}
+
+# Generate NA summary tables
+# Citation: https://www.geeksforgeeks.org/replace-character-value-with-na-in-r/
+owt_df02[owt_df02 == ""] <- NA
+print(head(owt_df02, 17))
+owt_df02_na <- sapply(owt_df02, function(x) sum(is.na(x)))
+owt_df02_notna <- sapply(owt_df02, function(x) sum(!is.na(x)))
+owt_df02_tbl01 <- rbind(owt_df02_notna, owt_df02_na)
+owt_df02_tbl02 <- rbind(owt_df02_tbl01, round(prop.table(owt_df02_tbl01, margin = 2), 4))
+print("All parameters")
+print(owt_df02_tbl02)
+
+owt_df02a <- owt_df02[which(is.na(owt_df02), arr.ind=TRUE), ]
+#print(head(owt_df02a, 17))
+
+for(p in param_lst01) {
+  df = owt_df02[owt_df02$parameter == p, ]
+  print(head(df[which(is.na(df$value), arr.ind=TRUE), ], 17))
+  df_na <- sapply(df, function(x) sum(is.na(x)))
+  df_notna <- sapply(df, function(x) sum(!is.na(x)))
+  df_tbl01 <- rbind(df_notna, df_na)
+  df_tbl02 <- rbind(df_tbl01, round(prop.table(df_tbl01, margin = 2), 4))
+  rownames(df_tbl02) <- c("Not NA n", "NA n", "Not NA %", "NA %")
+  print(p)
+  print(df_tbl02) # This table w/ null counts and proportions for each feature not displayed for space purposes
+}
+
+# Display value summaries
+# Citation: Dave Hurst
+params <- owt_df02 %>%
+  mutate(unit_def = paste(parameter, qualifier, units)) %>%
+  count(unit_def)
+print(params)
+```
+
+## Bin `depth_m` variable
+```{r, warning=FALSE}
+owt_df02$date_sample <- as.Date(owt_df02$date_sample, "%Y-%m-%d")
+
+# Create bins for depth_m values
+depth_lvls01 <- c("[0,8)",
+                  "[8,33)",
+                  "[33,47)",
+                  "[47,70)",
+                  "[70,90)",
+                  "[90,112)",
+                  "[112,120]",
+                  "Unknown")
+
+# Plot distribution of depth_m values
+#Citation: https://community.rstudio.com/t/ggplot-x-axis-y-axis-ticks-labels-breaks-and-limits/119123/2
+ggplot(owt_df02, aes(x = depth_m)) +
+  geom_histogram(color = "black", bins = 40, aes(y = stat(density))) +
+  geom_density(col = "blue") +
+  labs(title = "Histogram of `depth_m` Feature") +
+  scale_x_continuous(breaks=seq(0,120,1)) +
+  theme(plot.title = element_text(hjust = 0.5, size = 12))
+
+# Create new column with bins
+# Citation: https://www.marsja.se/r-add-column-to-dataframe-based-on-other-columns-conditions-dplyr/
+owt_df02 <- mutate(owt_df02, depth_m_bin = case_when(depth_m < 8 ~ "[0,8)",
+                                                     depth_m < 33 ~ "[8,33)",
+                                                     depth_m < 47 ~ "[33,47)",
+                                                     depth_m < 70 ~ "[47,70)",
+                                                     depth_m < 90 ~ "[70,90)",
+                                                     depth_m < 112 ~ "[90,112)",
+                                                     depth_m >= 112 ~ "[112,120]"))
+
+# Replace NAs with "Unknown"
+# Citation: https://statisticsglobe.com/r-replace-na-with-0/
+owt_df02$depth_m_bin <- replace_na(owt_df02$depth_m_bin, "Unknown")
+
+# Citation: https://www.statology.org/order-bars-ggplot2-bar-chart/
+owt_df02$depth_m_bin_factr = factor(owt_df02$depth_m_bin, levels = depth_lvls01)
+print(head(owt_df02, 17))
+
+# Display transformed bar chart
+ggplot(owt_df02, aes(x = depth_m_bin_factr)) +
+  geom_bar() +
+  labs(title = "Bar of `depth_m_bin` Feature") +
+  theme(plot.title = element_text(hjust = 0.5, size = 12))
+```
+
+## Perform several aggregations on the data for performing EDA at multiple levels
+```{r}
+# Display aggregations by different features
+owt_df02_gb01 <- owt_df02 %>%
+  group_by(station) %>%
+  summarise(Count = n())
+
+print(owt_df02_gb01[owt_df02_gb01$Count == min(owt_df02_gb01$Count), ])
+print(owt_df02_gb01[owt_df02_gb01$Count == max(owt_df02_gb01$Count), ])
+
+owt_df02_gb02 <- owt_df02 %>%
+  group_by(project) %>%
+  summarise(Count = n())
+
+owt_df02_gb03 <- owt_df02 %>%
+  group_by(date_sample) %>%
+  summarise(Count = n())
+
+# Main DF1
+owt_df02_gb04 <- owt_df02 %>%
+  group_by(date_sample, parameter) %>%
+  summarise(Avg = mean(value, na.remove = TRUE))
+
+owt_df02_gb05 <- owt_df02 %>%
+  group_by(parameter) %>%
+  summarise(Count = n())
+
+owt_df02_gb06 <- owt_df02 %>%
+  group_by(depth_m) %>%
+  summarise(Count = n())
+
+# Main DF3
+owt_df02_gb07 <- owt_df02 %>%
+  group_by(date_sample, project, depth_m_bin, parameter) %>%
+  summarise(Avg = mean(value, na.remove = TRUE))
+
+owt_df02_gb08 <- owt_df02 %>%
+  group_by(depth_m_bin) %>%
+  summarise(Count = n())
+
+# Main DF2
+owt_df02_gb09 <- owt_df02 %>%
+  group_by(date_sample, project, parameter) %>%
+  summarise(Avg = mean(value, na.remove = TRUE))
+
+print(owt_df02_gb01)
+print(dim(owt_df02_gb01))
+print(owt_df02_gb02)
+print(dim(owt_df02_gb02))
+print(head(owt_df02_gb03, 17))
+print(dim(owt_df02_gb03))
+print(head(owt_df02_gb04, 17))
+print(dim(owt_df02_gb04))
+print(owt_df02_gb05)
+print(dim(owt_df02_gb05))
+print(owt_df02_gb06)
+print(dim(owt_df02_gb06))
+print(head(owt_df02_gb07, 17))
+print(dim(owt_df02_gb07))
+print(owt_df02_gb08)
+print(dim(owt_df02_gb08))
+print(head(owt_df02_gb09, 17))
+print(dim(owt_df02_gb09))
+```
+
+## Create custom function to df mutation/casting and boxplot display
+```{r, warning=FALSE}
+ts_eda <- function(ts_df = NA,
+                   form_lead = c(),
+                   form_cast = c(),
+                   param_lst = c(),
+                   l1_col = c(),
+                   l1_param = c(),
+                   l2_col = c(),
+                   l2_param = c(),
+                   rtn_met = TRUE,
+                   grph_title = "All",
+                   box = TRUE,
+                   week_agg = FALSE,
+                   out_rm = FALSE) {
+  # Define function to dcast, print boxplot, and print desc stats for each parameter
+  dcast_form <- as.formula(paste(paste(form_lead, collapse = "+"), form_cast, sep = "~"))
+  print(dcast_form)
+  #print(head(ts_df))
+  
+  counter <- 1
+  # Loop to dcast parameters to cols
+  for(p in param_lst) {
+    sym_param <- sym(p)
+    print(sym_param)
+    param_df <- ts_df[ts_df[, form_cast] == p, ]
+    param_df <- param_df %>%
+      drop_na()
+    #print(param_df)
+
+    if(week_agg == TRUE) {
+      param_df02a <- param_df
+      param_df02a$week <- isoweek(param_df02a$date_sample)
+      # Citation: https://lubridate.tidyverse.org/reference/round_date.html
+      param_df02a$week_end <- ceiling_date(param_df02a$date_sample,
+                                           unit = "week",
+                                           week_start = getOption("lubridate.week.start", 1))
+      #print(head(param_df02a, 17)
+      param_df$date_sample <- param_df02a$week_end
+    }
+        
+    # Citation: https://www.datasciencemadesimple.com/melting-casting-r/
+    param_df_cast <- dcast(param_df, dcast_form, mean)
+    #print(head(param_df_cast, 17))
+
+    # If keyword set to TRUE, removed outliers
+    if(out_rm == TRUE) {
+      #ts_df_mrgd01c <- na.omit(param_df_cast)
+      #print(head(ts_df_mrgd01c, 17))
+      #print(dim(ts_df_mrgd01c))
+      ts_df_mrgd01c_s1 <- subset(x = param_df_cast, select = p)
+      ts_df_mrgd01c_s1_fit <- preProcess(ts_df_mrgd01c_s1,
+                                         method = c("center", "scale"))
+      ts_df_mrgd01c_s1_trans <- predict(ts_df_mrgd01c_s1_fit,
+                                        ts_df_mrgd01c_s1)
+  
+      # Subset non-outlier data 
+      print(dim(param_df_cast))
+      param_df_cast <- subset(param_df_cast,
+                                  (abs(ts_df_mrgd01c_s1_trans) <= 3))
+      dfs1b <- param_df_cast[, p]
+      #print(head(param_df_cast, 17))
+    }
+    
+    # For first item in vector, no merge is needed
+    if(counter  == 1) {
+      ts_df_mrgd <- param_df_cast
+    }
+    # For 2-n items in vector, merge dataframes iteratively
+    else {
+      # Merge individual casted parameter df's into 1 df
+      # Citation: https://www.geeksforgeeks.org/joining-of-dataframes-in-r-programming/
+      ts_df_mrgd <- merge(x = ts_df_mrgd,
+                          y = param_df_cast,
+                          by = form_lead,
+                          all = TRUE)
+    }
+    
+    # Run custom function to ID outliers and generate boxplot
+    #ts_df_mrgd01a <- subset(x = ts_df_mrgd, select = num_var_lst01)
+    ts_df_mrgd01a <- na.omit(param_df_cast)
+    #print(head(ts_df_mrgd01a, 17))
+    print(dim(ts_df_mrgd01a))
+    dfs1 <- subset(x = ts_df_mrgd01a, select = p)
+    dfs1a <- dfs1
+    #print(head(dfs1a, 17))
+    
+    dfs1a$Groups <- as.factor(grph_title)
+    box_comp(xcol = p,
+             df = dfs1,
+             rtn_met = rtn_met,
+             box = box)
+    #dfs_lst <- list(dfs1)
+    #print(dfs_lst)
+
+    #_________________________________________________________________________
+    # Create subplots based on additional agg layers
+    print(paste0("L2 length = ", length(l2_param)))
+    if(length(l2_param) == 0) {
+      for(l1 in l1_param) {
+        ts_df_mrgd_chl_dmb1 <- ts_df_mrgd01a[(ts_df_mrgd01a[, l1_col] == l1), ]
+
+        # Run custom function to ID outliers and generate boxplot
+        #print(head(ts_df_mrgd_chl_dmb1))
+        # Citation: https://www.geeksforgeeks.org/handling-errors-in-r-programming/
+        dfs2 <- subset(x = ts_df_mrgd_chl_dmb1, select = p)
+        dfs2a <- dfs2
+        
+        
+        
+        try(dfs2a$Groups <- as.factor(l1))
+        try(box_comp(xcol = p,
+                     df = dfs2,
+                     rtn_met = rtn_met,
+                     grph_title = l1,
+                     box = box),
+            silent = TRUE)
+        dfs1a <- rbind(dfs1a, dfs2a)
+      }
+    }
+    else {
+      for(l1 in l1_param) {
+        for(l2 in l2_param) {
+          ts_df_mrgd_chl_dmb1 <- ts_df_mrgd01a[(ts_df_mrgd01a[, l1_col] == l1) & (ts_df_mrgd01a[, l2_col] == l2), ]
+  
+          # Run custom function to ID outliers and generate boxplot
+          #print(head(ts_df_mrgd_chl_dmb1))
+          # Citation: https://www.geeksforgeeks.org/handling-errors-in-r-programming/
+          dfs3 <- subset(x = ts_df_mrgd_chl_dmb1, select = p)
+          dfs3a <- dfs3
+          
+          
+          
+          try(dfs3a$Groups <- as.factor(paste0(l1, ": ", l2)))
+          try(box_comp(xcol = p,
+                       df = dfs3,
+                       rtn_met = rtn_met,
+                       grph_title = paste0(l1, ": ", l2),
+                       box = box),
+              silent = TRUE)
+          dfs1a <- rbind(dfs1a, dfs3a)
+        }
+      }
+    }
+    #_________________________________________________________________________
+    #print(dim(dfs1a))
+    #print(head(dfs1a, 17))
+    bx_form <- as.formula(paste(p, "Groups", sep = "~"))
+    #print(bx_form)
+    #dfs1a$box_factr = factor(owt_df02$depth_m_bin, levels = depth_lvls01)
+    #print(head(dfs1a, 17))
+    boxplot(bx_form,
+            dfs1a,
+            main = "Boxplot(s)")
+
+    counter <- counter + 1
+  }
+  print(head(ts_df_mrgd, 17))
+  print(describe(ts_df_mrgd))
+  
+  # Display summary of NA count
+  ts_df_na <- sapply(ts_df, function(x) sum(is.na(x)))
+  ts_df_notna <- sapply(ts_df, function(x) sum(!is.na(x)))
+  ts_df_tbl01 <- rbind(ts_df_notna, ts_df_na)
+  ts_df_tbl02 <- rbind(ts_df_tbl01, round(prop.table(ts_df_tbl01, margin = 2), 4))
+  rownames(ts_df_tbl02) <- c("Not NA n", "NA n", "Not NA %", "NA %")
+  print(ts_df_tbl02) # This table w/ null counts and proportions for each feature not displayed for space purposes
+  return(ts_df_mrgd)
+}
+```
+
+## Run custom function on data aggregated by `date_sample` and `parameter`
+```{r, fig.height=10, fig.width=30, warning=FALSE}
+param_lst02 <- c("CHLOROPHYLL",
+                 "DENSITY", 
+                 "DO", 
+                 "ENTERO", 
+                 "FECAL", 
+                 "OG", 
+                 "PH", 
+                 "SALINITY", 
+                 "SUSO", 
+                 "TEMP", 
+                 "XMS")
+
+owt_df02_gb04_mrgd = ts_eda(ts_df = owt_df02_gb04,
+                            form_lead = "date_sample",
+                            form_cast = "parameter",
+                            param_lst = param_lst02,
+                            rtn_met = TRUE,
+                            box = FALSE,
+                            week_agg = FALSE
+                            )
+```
+
+```{r, fig.height=10, fig.width=30, warning=FALSE}
+owt_df02_gb04_wkly = ts_eda(ts_df = owt_df02_gb04,
+                            form_lead = "date_sample",
+                            form_cast = "parameter",
+                            param_lst = param_lst02,
+                            rtn_met = TRUE,
+                            box = FALSE,
+                            week_agg = TRUE
+                            )
+```
+
+```{r, fig.height=10, fig.width=30, warning=FALSE}
+owt_df02_gb04_wkly02 = ts_eda(ts_df = owt_df02_gb04,
+                            form_lead = "date_sample",
+                            form_cast = "parameter",
+                            param_lst = param_lst02,
+                            rtn_met = TRUE,
+                            box = FALSE,
+                            week_agg = TRUE,
+                            out_rm = TRUE
+                            )
+```
+
+## Run custom function on data aggregated by `date_sample`, `project` and `parameter`
+```{r, fig.height=10, fig.width=30, warning=FALSE}
+owt_df02_gb09_mrgd = ts_eda(ts_df = owt_df02_gb09,
+                            form_lead = c("date_sample", "project"),
+                            form_cast = "parameter",
+                            param_lst = param_lst02,
+                            l1_col = c("project"),
+                            l1_param = c("PLOO", "SBOO"),
+                            rtn_met = FALSE,
+                            box = FALSE,
+                            week_agg = FALSE
+                            )
+```
+
+```{r, fig.height=10, fig.width=30, warning=FALSE}
+owt_df02_gb09_wkly = ts_eda(ts_df = owt_df02_gb09,
+                            form_lead = c("date_sample", "project"),
+                            form_cast = "parameter",
+                            param_lst = param_lst02,
+                            l1_col = c("project"),
+                            l1_param = c("PLOO", "SBOO"),
+                            rtn_met = FALSE,
+                            box = FALSE,
+                            week_agg = TRUE
+                            )
+```
+
+## Run custom function on data aggregated by `date_sample`, `project`, `depth_m_bin` and `parameter`
+```{r, warning=FALSE, error=FALSE, fig.height=10, fig.width=30}
+owt_df02_gb07_mrgd = ts_eda(ts_df = owt_df02_gb07,
+                            form_lead = c("date_sample", "project", "depth_m_bin"),
+                            form_cast = "parameter",
+                            param_lst = param_lst02,
+                            l1_col = c("project"),
+                            l1_param = c("PLOO", "SBOO"),
+                            l2_col = c("depth_m_bin"),
+                            l2_param = depth_lvls01,
+                            rtn_met = FALSE,
+                            box = FALSE
+                            )
+```
+
+```{r, fig.height=10, fig.width=30, warning=FALSE, error=FALSE}
+owt_df02_gb07_wkly = ts_eda(ts_df = owt_df02_gb07,
+                            form_lead = c("date_sample", "project", "depth_m_bin"),
+                            form_cast = "parameter",
+                            param_lst = param_lst02,
+                            l1_col = c("project"),
+                            l1_param = c("PLOO", "SBOO"),
+                            l2_col = c("depth_m_bin"),
+                            l2_param = depth_lvls01,
+                            rtn_met = FALSE,
+                            box = FALSE,
+                            week_agg = TRUE
+                            )
+```
+
+```{r EDA-CC-linearinterpolation, warning=FALSE}
+
+
+
+
+
+# Define function that imputes the missing values to parameter dataframe using linear interpolation
+impute_missing_values <- function(df_data) {
+  
+    params <- c("CHLOROPHYLL", "DENSITY", "DO", "ENTERO", "FECAL", "OG", "PH", "SALINITY", "SUSO", "TEMP", "XMS")
+  
+  for (param in params) {
+    print(head(df_data, 17))
+    print(param)
+    print(date_sample)
+    
+    x <- zoo(df_data$param, df_data$date_sample)
+    df_data$param <- na.interpolation(x, option = "linear")
+    return(df_data)
+  
+  }
+}
+
+# remove NAs
+# Linear Interpolation
+
+# owt_df02_gb04_mrgd
+x <- zoo(owt_df02_gb04_mrgd$CHLOROPHYLL, owt_df02_gb04_mrgd$date_sample)
+owt_df02_gb04_mrgd$CHLOROPHYLL <- na.interpolation(x, option = "linear")
+
+x <- zoo(owt_df02_gb04_mrgd$DENSITY, owt_df02_gb04_mrgd$date_sample)
+owt_df02_gb04_mrgd$DENSITY <- na.interpolation(x, option = "linear")
+
+x <- zoo(owt_df02_gb04_mrgd$DO, owt_df02_gb04_mrgd$date_sample)
+owt_df02_gb04_mrgd$DO <- na.interpolation(x, option = "linear")
+
+x <- zoo(owt_df02_gb04_mrgd$ENTERO, owt_df02_gb04_mrgd$date_sample)
+owt_df02_gb04_mrgd$ENTERO <- na.interpolation(x, option = "linear")
+
+x <- zoo(owt_df02_gb04_mrgd$FECAL, owt_df02_gb04_mrgd$date_sample)
+owt_df02_gb04_mrgd$FECAL <- na.interpolation(x, option = "linear")
+
+x <- zoo(owt_df02_gb04_mrgd$OG, owt_df02_gb04_mrgd$date_sample)
+owt_df02_gb04_mrgd$OG <- na.interpolation(x, option = "linear")
+
+x <- zoo(owt_df02_gb04_mrgd$PH, owt_df02_gb04_mrgd$date_sample)
+owt_df02_gb04_mrgd$PH <- na.interpolation(x, option = "linear")
+
+x <- zoo(owt_df02_gb04_mrgd$SALINITY, owt_df02_gb04_mrgd$date_sample)
+owt_df02_gb04_mrgd$SALINITY <- na.interpolation(x, option = "linear")
+
+x <- zoo(owt_df02_gb04_mrgd$SUSO, owt_df02_gb04_mrgd$date_sample)
+owt_df02_gb04_mrgd$SUSO <- na.interpolation(x, option = "linear")
+
+x <- zoo(owt_df02_gb04_mrgd$TEMP, owt_df02_gb04_mrgd$date_sample)
+owt_df02_gb04_mrgd$TEMP <- na.interpolation(x, option = "linear")
+
+x <- zoo(owt_df02_gb04_mrgd$XMS, owt_df02_gb04_mrgd$date_sample)
+owt_df02_gb04_mrgd$XMS <- na.interpolation(x, option = "linear")
+
+
+# owt_df02_gb04_wkly
+x <- zoo(owt_df02_gb04_wkly$CHLOROPHYLL, owt_df02_gb04_wkly$date_sample)
+owt_df02_gb04_wkly$CHLOROPHYLL <- na.interpolation(x, option = "linear")
+
+x <- zoo(owt_df02_gb04_wkly$DENSITY, owt_df02_gb04_wkly$date_sample)
+owt_df02_gb04_wkly$DENSITY <- na.interpolation(x, option = "linear")
+
+x <- zoo(owt_df02_gb04_wkly$DO, owt_df02_gb04_wkly$date_sample)
+owt_df02_gb04_wkly$DO <- na.interpolation(x, option = "linear")
+
+x <- zoo(owt_df02_gb04_wkly$ENTERO, owt_df02_gb04_wkly$date_sample)
+owt_df02_gb04_wkly$ENTERO <- na.interpolation(x, option = "linear")
+
+x <- zoo(owt_df02_gb04_wkly$FECAL, owt_df02_gb04_wkly$date_sample)
+owt_df02_gb04_wkly$FECAL <- na.interpolation(x, option = "linear")
+
+x <- zoo(owt_df02_gb04_wkly$OG, owt_df02_gb04_wkly$date_sample)
+owt_df02_gb04_wkly$OG <- na.interpolation(x, option = "linear")
+
+x <- zoo(owt_df02_gb04_wkly$PH, owt_df02_gb04_wkly$date_sample)
+owt_df02_gb04_wkly$PH <- na.interpolation(x, option = "linear")
+
+x <- zoo(owt_df02_gb04_wkly$SALINITY, owt_df02_gb04_wkly$date_sample)
+owt_df02_gb04_wkly$SALINITY <- na.interpolation(x, option = "linear")
+
+x <- zoo(owt_df02_gb04_wkly$SUSO, owt_df02_gb04_wkly$date_sample)
+owt_df02_gb04_wkly$SUSO <- na.interpolation(x, option = "linear")
+
+x <- zoo(owt_df02_gb04_wkly$TEMP, owt_df02_gb04_wkly$date_sample)
+owt_df02_gb04_wkly$TEMP <- na.interpolation(x, option = "linear")
+
+x <- zoo(owt_df02_gb04_wkly$XMS, owt_df02_gb04_wkly$date_sample)
+owt_df02_gb04_wkly$XMS <- na.interpolation(x, option = "linear")
+
+
+# owt_df02_gb09_mrgd
+x <- zoo(owt_df02_gb09_mrgd$CHLOROPHYLL, owt_df02_gb09_mrgd$date_sample)
+owt_df02_gb09_mrgd$CHLOROPHYLL <- na.interpolation(x, option = "linear")
+
+x <- zoo(owt_df02_gb09_mrgd$DENSITY, owt_df02_gb09_mrgd$date_sample)
+owt_df02_gb09_mrgd$DENSITY <- na.interpolation(x, option = "linear")
+
+x <- zoo(owt_df02_gb09_mrgd$DO, owt_df02_gb09_mrgd$date_sample)
+owt_df02_gb09_mrgd$DO <- na.interpolation(x, option = "linear")
+
+x <- zoo(owt_df02_gb09_mrgd$ENTERO, owt_df02_gb09_mrgd$date_sample)
+owt_df02_gb09_mrgd$ENTERO <- na.interpolation(x, option = "linear")
+
+x <- zoo(owt_df02_gb09_mrgd$FECAL, owt_df02_gb09_mrgd$date_sample)
+owt_df02_gb09_mrgd$FECAL <- na.interpolation(x, option = "linear")
+
+x <- zoo(owt_df02_gb09_mrgd$OG, owt_df02_gb09_mrgd$date_sample)
+owt_df02_gb09_mrgd$OG <- na.interpolation(x, option = "linear")
+
+x <- zoo(owt_df02_gb09_mrgd$PH, owt_df02_gb09_mrgd$date_sample)
+owt_df02_gb09_mrgd$PH <- na.interpolation(x, option = "linear")
+
+x <- zoo(owt_df02_gb09_mrgd$SALINITY, owt_df02_gb09_mrgd$date_sample)
+owt_df02_gb09_mrgd$SALINITY <- na.interpolation(x, option = "linear")
+
+x <- zoo(owt_df02_gb09_mrgd$SUSO, owt_df02_gb09_mrgd$date_sample)
+owt_df02_gb09_mrgd$SUSO <- na.interpolation(x, option = "linear")
+
+x <- zoo(owt_df02_gb09_mrgd$TEMP, owt_df02_gb09_mrgd$date_sample)
+owt_df02_gb09_mrgd$TEMP <- na.interpolation(x, option = "linear")
+
+x <- zoo(owt_df02_gb09_mrgd$XMS, owt_df02_gb09_mrgd$date_sample)
+owt_df02_gb09_mrgd$XMS <- na.interpolation(x, option = "linear")
+
+
+# owt_df02_gb09_wkly <- impute_missing_values(owt_df02_gb09_wkly)
+x <- zoo(owt_df02_gb09_wkly$CHLOROPHYLL, owt_df02_gb09_wkly$date_sample)
+owt_df02_gb09_wkly$CHLOROPHYLL <- na.interpolation(x, option = "linear")
+
+x <- zoo(owt_df02_gb09_wkly$DENSITY, owt_df02_gb09_wkly$date_sample)
+owt_df02_gb09_wkly$DENSITY <- na.interpolation(x, option = "linear")
+
+x <- zoo(owt_df02_gb09_wkly$DO, owt_df02_gb09_wkly$date_sample)
+owt_df02_gb09_wkly$DO <- na.interpolation(x, option = "linear")
+
+x <- zoo(owt_df02_gb09_wkly$ENTERO, owt_df02_gb09_wkly$date_sample)
+owt_df02_gb09_wkly$ENTERO <- na.interpolation(x, option = "linear")
+
+x <- zoo(owt_df02_gb09_wkly$FECAL, owt_df02_gb09_wkly$date_sample)
+owt_df02_gb09_wkly$FECAL <- na.interpolation(x, option = "linear")
+
+x <- zoo(owt_df02_gb09_wkly$OG, owt_df02_gb09_wkly$date_sample)
+owt_df02_gb09_wkly$OG <- na.interpolation(x, option = "linear")
+
+x <- zoo(owt_df02_gb09_wkly$PH, owt_df02_gb09_wkly$date_sample)
+owt_df02_gb09_wkly$PH <- na.interpolation(x, option = "linear")
+
+x <- zoo(owt_df02_gb09_wkly$SALINITY, owt_df02_gb09_wkly$date_sample)
+owt_df02_gb09_wkly$SALINITY <- na.interpolation(x, option = "linear")
+
+x <- zoo(owt_df02_gb09_wkly$SUSO, owt_df02_gb09_wkly$date_sample)
+owt_df02_gb09_wkly$SUSO <- na.interpolation(x, option = "linear")
+
+x <- zoo(owt_df02_gb09_wkly$TEMP, owt_df02_gb09_wkly$date_sample)
+owt_df02_gb09_wkly$TEMP <- na.interpolation(x, option = "linear")
+
+x <- zoo(owt_df02_gb09_wkly$XMS, owt_df02_gb09_wkly$date_sample)
+owt_df02_gb09_wkly$XMS <- na.interpolation(x, option = "linear")
+
+
+# owt_df02_gb07_mrgd
+x <- zoo(owt_df02_gb07_mrgd$CHLOROPHYLL, owt_df02_gb07_mrgd$date_sample)
+owt_df02_gb07_mrgd$CHLOROPHYLL <- na.interpolation(x, option = "linear")
+
+x <- zoo(owt_df02_gb07_mrgd$DENSITY, owt_df02_gb07_mrgd$date_sample)
+owt_df02_gb07_mrgd$DENSITY <- na.interpolation(x, option = "linear")
+
+x <- zoo(owt_df02_gb07_mrgd$DO, owt_df02_gb07_mrgd$date_sample)
+owt_df02_gb07_mrgd$DO <- na.interpolation(x, option = "linear")
+
+x <- zoo(owt_df02_gb07_mrgd$ENTERO, owt_df02_gb07_mrgd$date_sample)
+owt_df02_gb07_mrgd$ENTERO <- na.interpolation(x, option = "linear")
+
+x <- zoo(owt_df02_gb07_mrgd$FECAL, owt_df02_gb07_mrgd$date_sample)
+owt_df02_gb07_mrgd$FECAL <- na.interpolation(x, option = "linear")
+
+x <- zoo(owt_df02_gb07_mrgd$OG, owt_df02_gb07_mrgd$date_sample)
+owt_df02_gb07_mrgd$OG <- na.interpolation(x, option = "linear")
+
+x <- zoo(owt_df02_gb07_mrgd$PH, owt_df02_gb07_mrgd$date_sample)
+owt_df02_gb07_mrgd$PH <- na.interpolation(x, option = "linear")
+
+x <- zoo(owt_df02_gb07_mrgd$SALINITY, owt_df02_gb07_mrgd$date_sample)
+owt_df02_gb07_mrgd$SALINITY <- na.interpolation(x, option = "linear")
+
+x <- zoo(owt_df02_gb07_mrgd$SUSO, owt_df02_gb07_mrgd$date_sample)
+owt_df02_gb07_mrgd$SUSO <- na.interpolation(x, option = "linear")
+
+x <- zoo(owt_df02_gb07_mrgd$TEMP, owt_df02_gb07_mrgd$date_sample)
+owt_df02_gb07_mrgd$TEMP <- na.interpolation(x, option = "linear")
+
+x <- zoo(owt_df02_gb07_mrgd$XMS, owt_df02_gb07_mrgd$date_sample)
+owt_df02_gb07_mrgd$XMS <- na.interpolation(x, option = "linear")
+
+
+# owt_df02_gb07_mrgd
+x <- zoo(owt_df02_gb07_wkly$CHLOROPHYLL, owt_df02_gb07_wkly$date_sample)
+owt_df02_gb07_wkly$CHLOROPHYLL <- na.interpolation(x, option = "linear")
+
+x <- zoo(owt_df02_gb07_wkly$DENSITY, owt_df02_gb07_wkly$date_sample)
+owt_df02_gb07_wkly$DENSITY <- na.interpolation(x, option = "linear")
+
+x <- zoo(owt_df02_gb07_wkly$DO, owt_df02_gb07_wkly$date_sample)
+owt_df02_gb07_wkly$DO <- na.interpolation(x, option = "linear")
+
+x <- zoo(owt_df02_gb07_wkly$ENTERO, owt_df02_gb07_wkly$date_sample)
+owt_df02_gb07_wkly$ENTERO <- na.interpolation(x, option = "linear")
+
+x <- zoo(owt_df02_gb07_wkly$FECAL, owt_df02_gb07_wkly$date_sample)
+owt_df02_gb07_wkly$FECAL <- na.interpolation(x, option = "linear")
+
+x <- zoo(owt_df02_gb07_wkly$OG, owt_df02_gb07_wkly$date_sample)
+owt_df02_gb07_wkly$OG <- na.interpolation(x, option = "linear")
+
+x <- zoo(owt_df02_gb07_wkly$PH, owt_df02_gb07_wkly$date_sample)
+owt_df02_gb07_wkly$PH <- na.interpolation(x, option = "linear")
+
+x <- zoo(owt_df02_gb07_wkly$SALINITY, owt_df02_gb07_wkly$date_sample)
+owt_df02_gb07_wkly$SALINITY <- na.interpolation(x, option = "linear")
+
+x <- zoo(owt_df02_gb07_wkly$SUSO, owt_df02_gb07_wkly$date_sample)
+owt_df02_gb07_wkly$SUSO <- na.interpolation(x, option = "linear")
+
+x <- zoo(owt_df02_gb07_wkly$TEMP, owt_df02_gb07_wkly$date_sample)
+owt_df02_gb07_wkly$TEMP <- na.interpolation(x, option = "linear")
+
+x <- zoo(owt_df02_gb07_wkly$XMS, owt_df02_gb07_wkly$date_sample)
+owt_df02_gb07_wkly$XMS <- na.interpolation(x, option = "linear")
+
+
+```
+
+```{r CC-EDA-PAD-MISSINGDATES}
+
+# https://cran.r-project.org/web/packages/padr/vignettes/padr.html
+library(padr)
+library(dplyr)
+
+owt_df02_gb04_mrgd %>% pad()
+
+####### 5 YEAR - 1996 - 2001 #######################################
+ts_chlorophyll <- ts(owt_df02_gb04_mrgd$CHLOROPHYLL, start = c(1996, 1), freq = 365)
+ts_1996_2001_chl <- window(ts_chlorophyll, start=c(1999, 1), end=c(2009, 1))
+stl_chl <- stl(ts_1996_2001_chl, s.window="periodic")
+#labels.chart = seq(as.Date("1990-11-15"), as.Date("2021-12-29"), by = "weeks")
+plot(stl_chl)
+mtext("CHLOROPHYLL", side=3, line = -5)
+
+
+ts_do <- ts(owt_df02_gb04_mrgd$DO, start = c(1996, 1), freq = 365)
+ts_1996_2001_do <- window(ts_do, start=c(1996, 1), end=c(2001, 1))
+stl_do <- stl(ts_1996_2001_do, s.window="periodic")
+#labels.chart = seq(as.Date("1990-11-15"), as.Date("2021-12-29"), by = "weeks")
+plot(stl_do)
+mtext("DO", side=3, line = -5)
+
+
+ts_ent <- ts(owt_df02_gb04_mrgd$ENTERO, start = c(1996, 1), freq = 365)
+ts_1996_2001_ent <- window(ts_ent, start=c(1996, 1), end=c(2001, 1))
+stl_ent <- stl(ts_1996_2001_ent, s.window="periodic")
+#labels.chart = seq(as.Date("1990-11-15"), as.Date("2021-12-29"), by = "weeks")
+plot(stl_ent)
+mtext("ENTERO", side=3, line = -5)
+
+
+ts_fecal <- ts(owt_df02_gb04_mrgd$FECAL, start = c(1996, 1), freq = 365)
+ts_1996_2001_fecal <- window(ts_fecal, start=c(1996, 1), end=c(2001, 1))
+stl_fecal <- stl(ts_1996_2001_fecal, s.window="periodic")
+#labels.chart = seq(as.Date("1990-11-15"), as.Date("2021-12-29"), by = "weeks")
+plot(stl_fecal)
+mtext("FECAL", side=3, line = -5)
+
+
+ts_og <- ts(owt_df02_gb04_mrgd$OG, start = c(1996, 1), freq = 365)
+ts_1996_2001_og <- window(ts_og, start=c(1996, 1), end=c(2001, 1))
+stl_og <- stl(ts_1996_2001_og, s.window="periodic")
+#labels.chart = seq(as.Date("1990-11-15"), as.Date("2021-12-29"), by = "weeks")
+plot(stl_og)
+mtext("OG", side=3, line = -5)
+
+
+ts_ph <- ts(owt_df02_gb04_mrgd$PH, start = c(1996, 1), freq = 365)
+ts_1996_2001_ph <- window(ts_ph, start=c(1996, 1), end=c(2001, 1))
+stl_ph <- stl(ts_1996_2001_ph, s.window="periodic")
+#labels.chart = seq(as.Date("1990-11-15"), as.Date("2021-12-29"), by = "weeks")
+plot(stl_ph)
+mtext("PH", side=3, line = -5)
+
+
+ts_salinity <- ts(owt_df02_gb04_mrgd$SALINITY, start = c(1996, 1), freq = 365)
+ts_1996_2001_salinity <- window(ts_salinity, start=c(1996, 1), end=c(2001, 1))
+stl_salinity <- stl(ts_1996_2001_salinity, s.window="periodic")
+#labels.chart = seq(as.Date("1990-11-15"), as.Date("2021-12-29"), by = "weeks")
+plot(stl_salinity)
+mtext("SALINITY", side=3, line = -5)
+
+
+ts_suso <- ts(owt_df02_gb04_mrgd$SUSO, start = c(1996, 1), freq = 365)
+ts_1996_2001_suso <- window(ts_suso, start=c(1996, 1), end=c(2001, 1))
+stl_suso <- stl(ts_1996_2001_suso, s.window="periodic")
+#labels.chart = seq(as.Date("1990-11-15"), as.Date("2021-12-29"), by = "weeks")
+plot(stl_suso)
+mtext("SUSO", side=3, line = -5)
+
+
+ts_temp <- ts(owt_df02_gb04_mrgd$TEMP, start = c(1996, 1), freq = 365)
+ts_1996_2001_temp <- window(ts_temp, start=c(1996, 1), end=c(2001, 1))
+stl_temp <- stl(ts_1996_2001_temp, s.window="periodic")
+#labels.chart = seq(as.Date("1990-11-15"), as.Date("2021-12-29"), by = "weeks")
+plot(stl_temp)
+mtext("TEMP", side=3, line = -5)
+
+
+ts_xms <- ts(owt_df02_gb04_mrgd$XMS, start = c(1996, 1), freq = 365)
+ts_1996_2001_xms <- window(ts_xms, start=c(1996, 1), end=c(2001, 1))
+stl_xms <- stl(ts_1996_2001_xms, s.window="periodic")
+#labels.chart = seq(as.Date("1990-11-15"), as.Date("2021-12-29"), by = "weeks")
+plot(stl_xms)
+mtext("XMS", side=3, line = -5)
+
+
+```
+
+```{r CC-EDA-STL-1YEARPERIOD}
+
+####### 1 YEAR - 2001 #######################################
+ts_chlorophyll <- ts(owt_df02_gb04_mrgd$CHLOROPHYLL, start = c(2001, 1), freq = 365)
+ts_1996_2001_chl <- window(ts_chlorophyll, start=c(2001, 1), end=c(2001, 2))
+plot(ts_1996_2001_chl)
+stl_chl <- stl(ts_1996_2001_chl, s.window="periodic")
+#labels.chart = seq(as.Date("1990-11-15"), as.Date("2021-12-29"), by = "weeks")
+plot(stl_chl)
+mtext("CHLOROPHYLL", side=3, line = -5)
+```
+
+```{r CC-PREPROCESING-TRAINSPLIT}
+
+library(forecast)
+
+# All parameters exhibited seasonal cycles within a year range, so
+# it would make sense to have several years worth of datapoints for the training period.  This set below can be used for all parameters.
+train <- head(owt_df02_gb04_mrgd, round(NROW(owt_df02_gb04_mrgd) * 0.6))
+h <- length(owt_df02_gb04_mrgd) - NROW(train)
+test <- tail(owt_df02_gb04_mrgd, h)
+
+```
+
+## Display new dataframes
+```{r}
+#print(head(owt_df02_gb04_mrgd, 17))
+#print(head(owt_df02_gb09_mrgd, 17))
+#print(head(owt_df02_gb07_mrgd, 17))
+
+owt_df02_gb04_tbbl <- as_tibble(owt_df02_gb04_mrgd, index = date_sample)
+owt_df02_gb04_wkly_tbbl <- as_tibble(owt_df02_gb04_wkly, index = date_sample)
+owt_df02_gb09_tbbl <- as_tibble(owt_df02_gb09_mrgd, key = project, index = date_sample)
+owt_df02_gb09_wkly_tbbl <- as_tibble(owt_df02_gb09_wkly, key = project, index = date_sample)
+owt_df02_gb07_tbbl <- as_tibble(owt_df02_gb07_mrgd, key = c(project, depth_m_bin), index = date_sample)
+owt_df02_gb07_wkly_tbbl <- as_tibble(owt_df02_gb07_wkly, key = c(project, depth_m_bin), index = date_sample)
+
+print(head(owt_df02_gb04_tbbl, 17))
+print(head(owt_df02_gb04_wkly_tbbl, 17))
+print(head(owt_df02_gb09_tbbl, 17))
+print(head(owt_df02_gb09_wkly_tbbl, 17))
+print(head(owt_df02_gb07_tbbl, 17))
+print(head(owt_df02_gb07_wkly_tbbl, 17))
+```
+
+```{r}
+#owt_df02_gb04_mrgd
+#owt_df02_gb09_mrgd
+#owt_df02_gb07_mrgd
+#owt_df02_gb04_wkly
+#owt_df02_gb04_wkly02
+#owt_df02_gb09_wkly
+#owt_df02_gb07_wkly
+
+param_lst03 <- c("CHLOROPHYLL",
+                 "DENSITY", 
+                 "DO", 
+                 "FECAL", 
+                 "OG", 
+                 "PH", 
+                 "SALINITY", 
+                 "SUSO", 
+                 "TEMP", 
+                 "XMS")
+
+scatr <- function(df = NA,
+                  y = NA,
+                  x_lst = c()) {
+  for (p in x_lst) {
+    plot <- ggplot(df, aes(df[, p], df[, y])) +
+    geom_point() +
+    stat_smooth(method = "lm",
+                formula = y ~ x,
+                geom = "smooth") +
+    labs(x = p,
+         y = y,
+         title = "Figure",
+         subtitle = paste0("Scatterplot of ", p, " and ", y, " Series"))
+    print(plot)
+  }
+}
+```
+
+```{r}
+scatr(df = owt_df02_gb04_wkly,
+      y = "ENTERO",
+      x_lst = param_lst03)
+```
+
+```{r}
+print(head(owt_df02_gb04_wkly02, 17))
+scatr(df = owt_df02_gb04_wkly02,
+      y = "ENTERO",
+      x_lst = param_lst03)
+```
+
+```{r}
+# i = parameter
+# j = project
+# k = depth
+time_plt <- function(df = NA,
+                     date = NA,
+                     l1 = c(),
+                     l2_name = NA,
+                     l2 = c(),
+                     l3_name = NA,
+                     l3 = c()) {
+  if(length(l3) == 0 & length(l2) == 0) {
+    for(i in l1) {
+      df_01a <- df
+      par(mar = c(5,5,5,2))
+      try(print(acf(df_01a[, i],
+                    pl = TRUE,
+                    na.action = na.pass,
+                    main = paste0("ACF Plot for ", i))))
+      plot <- ggplot(df_01a, aes(x = df_01a[, date], y = df_01a[, i], group = 1)) +
+        geom_line() +
+        labs(x = "Time",
+             y = i,
+             title = "Figure",
+             subtitle = paste0("Time Series Plot for ", i))
+      print(plot)
+    }
+  }
+  if(length(l3) == 0) {
+    for(i in l1) {
+      for(j in l2) {
+          df_01a <- df[df[, l2_name] == j, ]
+          par(mar = c(5,5,5,2))
+          try(print(acf(df_01a[, i],
+                        pl = TRUE,
+                        na.action = na.pass,
+                        main = paste0("ACF Plot for ", i, " (", j, ")"))))
+          plot <- ggplot(df_01a, aes(x = df_01a[, date], y = df_01a[, i], group = 1)) +
+            geom_line() +
+            labs(x = "Time",
+                 y = i,
+                 title = "Figure",
+                 subtitle = paste0("Time Series Plot for ", i, " (", j, ")"))
+          print(plot)
+      }
+    }
+  }
+  else {
+    for(i in l1) {
+      for(j in l2) {
+        for(k in l3) {
+          df_01a <- df[df[, l2_name] == j & df[, l3_name] == k, ]
+          par(mar = c(5,5,5,2))
+          try(print(acf(df_01a[, i],
+                        pl = TRUE,
+                        na.action = na.pass,
+                        main = paste0("ACF Plot for ", i, " (", j, ": ", k, ")"))))
+          plot <- ggplot(df_01a, aes(x = df_01a[, date], y = df_01a[, i], group = 1)) +
+            geom_line() +
+            labs(x = "Time",
+                 y = i,
+                 title = "Figure",
+                 subtitle = paste0("Time Series Plot for ", i, " (", j, ": ", k, ")"))
+          print(plot)
+        }
+      }
+    }
+  }
+}
+```
+
+```{r, fig.height=15, fig.width=30}
+param_lst04 <- c("CHLOROPHYLL",
+                 "DENSITY", 
+                 "DO", 
+                 "ENTERO", 
+                 "FECAL", 
+                 "PH", 
+                 "SALINITY", 
+                 "TEMP", 
+                 "XMS")
+
+param_lst05 <- c("ENTERO")
+
+uniq_proj <- unique(owt_df02_gb07_mrgd$project)
+uniq_depth <- unique(owt_df02_gb07_mrgd$depth_m_bin)
+uniq_proj
+uniq_depth
+
+time_plt(df = owt_df02_gb04_mrgd,
+         date = "date_sample",
+         l1 = param_lst05)
+```
+
+```{r, fig.height=15, fig.width=30}
+time_plt(df = owt_df02_gb09_mrgd,
+         date = "date_sample",
+         l1 = param_lst05,
+         l2_name = "project",
+         l2 = uniq_proj)
+```
+
+```{r, fig.height=15, fig.width=30}
+time_plt(df = owt_df02_gb07_mrgd,
+         date = "date_sample",
+         l1 = param_lst05,
+         l2_name = "project",
+         l2 = uniq_proj,
+         l3_name = "depth_m_bin",
+         l3 = uniq_depth)
+```
