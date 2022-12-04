@@ -2,17 +2,14 @@
 Working Title: Forecasting the Ocean Quality by San Diego
 This project is for USD’s ADS-506 Applied Time Series Analysis Course in Fall 2022
 
--- Project Status: [Active]
+-- Project Status: [Complete barring reports]
 
 ## Installation
 You should add an instruction how this project to be used, installed, run, edited in others’ machine.
-First clone the repo onto your device
-> git init
->
-> git clone
+First clone the repo onto your device, then load into R studio. 
 
 ### Project Introduction/Objective
-The main purpose of this project is ________. Describe the goals of the project and potential impacts. Mention the needs/applications of your project clearly. Limit to one/two short paragraph(s). 
+The main purpose of this project is to develop time series models to forecast various parameters for ocean water quality. This is to allow businesses and communities to know if additional measures to keep the water clean need to be taken or if there is  a health risk to being in the water at certain times (i.e. regular spikes in entero type microbes that could cause a health crisis). 
 
 ### Partners and Contributors:
 * Aaron Carr, Brianne Bell, Connie Chow
@@ -24,14 +21,19 @@ The main purpose of this project is ________. Describe the goals of the project 
   * Time series plots
   * Autocorrelation and plots
   * tsibble
+  * timetk for ts tibble
   * aggregation
   * dcast
   * mutate
 * Modeling
   * Hunt-Winter's
+  * ARIMA
+   * ARIMA with Predictors
+  * Time Series Linear Regression
 * Evaluation Metric(s)
   * RMSE
   * MAPE
+  * MAE
 
 ### Technologies
 R Markdown in R Studio
