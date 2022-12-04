@@ -2323,7 +2323,6 @@ library("forecast")
 params <- c("CHLOROPHYLL", "DENSITY", "DO", "ENTERO", "FECAL", "PH", "SALINITY", "TEMP", "XMS")
   
 for (param in params) {
-#print(param)
   
 z <- get(param, owt_df02_gb09_ploo_wkly03_train_tb03)
 ts_owt_df02_gb09_ploo_wkly03_train_tb03 <- ts(z, start = c(1999, 1), freq = 52)
@@ -2332,15 +2331,27 @@ HW1 <- HoltWinters(ts_owt_df02_gb09_ploo_wkly03_train_tb03)
 
 # forecast library more robust features vs. predict()
 library(forecast)
-HW1_for <- forecast(HW1, h=104, level=c(80,95))
+HW1_for <- forecast(HW1, h=52, level=c(80,95))
 #visualize our predictions:
 plot(HW1_for, xlim=c(2017, 2023))
 lines(HW1_for$fitted, lty=2, col="purple")
 mtext(param, side=3, line = -2)
 
-print("Accuracy: ")
+print("Training Set Accuracy: ")
 print(param)
+library(MLmetrics)
 print(accuracy(HW1_for))
+
+z2 <- get(param, owt_df02_gb09_ploo_wkly03_test_tb03)
+ts_owt_df02_gb09_ploo_wkly03_test_tb03 <- ts(z2, start = c(2021, 1), freq = 52)
+
+print("MAPE")
+print(MAPE(y_pred = HW1_for$fitted, y_true = ts_owt_df02_gb09_ploo_wkly03_test_tb03))
+print("MAE")
+print(MAPE(y_pred = HW1_for$fitted, y_true = ts_owt_df02_gb09_ploo_wkly03_test_tb03))
+
+
+
 }
 
 acf(HW1_for$residuals, lag.max=20, na.action=na.pass)
@@ -2348,6 +2359,7 @@ Box.test(HW1_for$residuals, lag=20, type="Ljung-Box")
 hist(HW1_for$residuals)
 
 ```
+
 
 
 ```{r CC-MODELING-HOLTWINTERS-owt_df02_gb09_ploo_wkly02_train_tb03}
@@ -2360,27 +2372,35 @@ params <- c("CHLOROPHYLL", "DENSITY", "DO", "ENTERO", "FECAL", "PH", "SALINITY",
 for (param in params) {
 #print(param)
   
-z <- get(param, owt_df02_gb09_ploo_wkly02_train_tb03)
-ts_owt_df02_gb09_ploo_wkly02_train_tb03 <- ts(z, start = c(1999, 1), freq = 52)
+z11 <- get(param, owt_df02_gb09_ploo_wkly02_train_tb03)
+ts_owt_df02_gb09_ploo_wkly02_train_tb03 <- ts(z11, start = c(1999, 1), freq = 52)
 
 HW1 <- HoltWinters(ts_owt_df02_gb09_ploo_wkly02_train_tb03)
 
 # forecast library more robust features vs. predict()
 library(forecast)
-HW1_for <- forecast(HW1, h=104, level=c(80,95))
+HW1_for11 <- forecast(HW1, h=104, level=c(80,95))
 #visualize our predictions:
-plot(HW1_for, xlim=c(2017, 2023))
-lines(HW1_for$fitted, lty=2, col="purple")
+plot(HW1_for11, xlim=c(2017, 2023))
+lines(HW1_for11$fitted, lty=2, col="purple")
 mtext(param, side=3, line = -2)
 
-print("Accuracy: ")
+print("Training Set Accuracy: ")
 print(param)
-print(accuracy(HW1_for))
+print(accuracy(HW1_for11))
+
+z211 <- get(param, owt_df02_gb09_ploo_wkly02_test_tb03)
+ts_owt_df02_gb09_ploo_wkly02_test_tb03 <- ts(z211, start = c(2021, 1), freq = 52)
+
+print("Test set: MAPE")
+print(MAPE(y_pred = HW1_for11$fitted, y_true = ts_owt_df02_gb09_ploo_wkly02_test_tb03))
+print("Test Set: MAE")
+print(MAPE(y_pred = HW1_for11$fitted, y_true = ts_owt_df02_gb09_ploo_wkly02_test_tb03))
 }
 
-acf(HW1_for$residuals, lag.max=20, na.action=na.pass)
-Box.test(HW1_for$residuals, lag=20, type="Ljung-Box")
-hist(HW1_for$residuals)
+acf(HW1_for11$residuals, lag.max=20, na.action=na.pass)
+Box.test(HW1_for11$residuals, lag=20, type="Ljung-Box")
+hist(HW1_for11$residuals)
 
 ```
 
@@ -2410,6 +2430,15 @@ mtext(param, side=3, line = -2)
 print("Accuracy: ")
 print(param)
 print(accuracy(HW1_for))
+
+# test set
+z2 <- get(param, owt_df02_gb09_sboo_wkly03_test_tb03)
+ts_owt_df02_gb09_sboo_wkly03_test_tb03 <- ts(z2, start = c(2021, 1), freq = 52)
+
+print("Test set: MAPE")
+print(MAPE(y_pred = HW1_for$fitted, y_true = ts_owt_df02_gb09_sboo_wkly03_test_tb03))
+print("Test Set: MAE")
+print(MAPE(y_pred = HW1_for$fitted, y_true = ts_owt_df02_gb09_sboo_wkly03_test_tb03))
 }
 
 acf(HW1_for$residuals, lag.max=20, na.action=na.pass)
