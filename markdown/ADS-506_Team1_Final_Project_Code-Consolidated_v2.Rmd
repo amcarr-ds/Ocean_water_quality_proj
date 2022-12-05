@@ -414,7 +414,8 @@ ts_eda <- function(ts_df = NA,
                    week_agg = FALSE,
                    out_rm = FALSE) {
   # Define function to dcast, print boxplot, and print desc stats for each parameter
-  dcast_form <- as.formula(paste(paste(form_lead, collapse = "+"), form_cast, sep = "~"))
+  dcast_form <- as.formula(paste(paste(form_lead, collapse = "+"),
+                                 form_cast, sep = "~"))
   #print(dcast_form)
   #print(head(ts_df))
   
@@ -642,7 +643,7 @@ owt_df02_gb09_wkly = ts_eda(ts_df = owt_df02_gb09,
                             )
 ```
 
-```{r, message=FALSE, warning=FALSE, error=FALSE, fig.height=10, fig.width=30}
+```{r, message=FALSE, warning=FALSE, error=FALSE, fig.height=15, fig.width=20}
 owt_df02_gb09_wkly02 = ts_eda(ts_df = owt_df02_gb09,
                               form_lead = c("date_sample", "project"),
                               form_cast = "parameter",
@@ -922,7 +923,7 @@ round(cor(splitnum_sub), 2)
 ```
 
 ## Run custom function on data aggregated by `date_sample`, `project`, `depth_m_bin` and `parameter`
-```{r, message=FALSE, warning=FALSE, error=FALSE, fig.height=10, fig.width=30}
+```{r error=FALSE, fig.height=15, fig.width=22, message=FALSE, warning=FALSE}
 owt_df02_gb07_mrgd = ts_eda(ts_df = owt_df02_gb07,
                             form_lead = c("date_sample", "project", "depth_m_bin"),
                             form_cast = "parameter",
@@ -951,12 +952,22 @@ owt_df02_gb07_wkly = ts_eda(ts_df = owt_df02_gb07,
                             )
 ```
 
-```{r EDA-CC-linearinterpolation, warning=FALSE, error=FALSE}
+```{r EDA-CC-linearinterpolation, warning=FALSE, error=FALSE, echo=TRUE}
 
 # Define function that imputes the missing values to parameter dataframe using linear interpolation
 impute_missing_values <- function(df_data) {
   
-    params <- c("CHLOROPHYLL", "DENSITY", "DO", "ENTERO", "FECAL", "OG", "PH", "SALINITY", "SUSO", "TEMP", "XMS")
+    params <- c("CHLOROPHYLL",
+                "DENSITY",
+                "DO",
+                "ENTERO",
+                "FECAL",
+                "OG",
+                "PH",
+                "SALINITY",
+                "SUSO",
+                "TEMP",
+                "XMS")
   
   for (param in params) {
     print(head(df_data, 7))
@@ -1183,10 +1194,8 @@ x <- zoo(owt_df02_gb07_wkly$XMS, owt_df02_gb07_wkly$date_sample)
 owt_df02_gb07_wkly$XMS <- na.interpolation(x, option = "linear")
 ```
 
-```{r CC-EDA-PAD-MISSINGDATES, message=FALSE, warning=FALSE, error=FALSE}
+```{r CC-EDA-PAD-MISSINGDATES, message=FALSE, warning=FALSE, error=FALSE, echo=TRUE}
 # https://cran.r-project.org/web/packages/padr/vignettes/padr.html
-#library(dplyr)
-
 owt_df02_gb04_mrgd %>%
   pad()
 
@@ -1269,32 +1278,14 @@ stl_xms <- stl(ts_1996_2001_xms, s.window="periodic")
 #labels.chart = seq(as.Date("1990-11-15"), as.Date("2021-12-29"), by = "weeks")
 plot(stl_xms)
 mtext("XMS", side=3, line = -5)
-
-
 ```
 
-{r CC-EDA-STL-1YEARPERIOD}
-
-####### 1 YEAR - 2001 #######################################
-ts_chlorophyll <- ts(owt_df02_gb04_mrgd$CHLOROPHYLL, start = c(2001, 1), freq = 365)
-ts_1996_2001_chl <- window(ts_chlorophyll, start=c(2001, 1), end=c(2001, 2))
-plot(ts_1996_2001_chl)
-stl_chl <- stl(ts_1996_2001_chl, s.window="periodic")
-#labels.chart = seq(as.Date("1990-11-15"), as.Date("2021-12-29"), by = "weeks")
-plot(stl_chl)
-mtext("CHLOROPHYLL", side=3, line = -5)
-
-
 ```{r CC-PREPROCESING-TRAINSPLIT}
-
-#library(forecast)
-
 # All parameters exhibited seasonal cycles within a year range, so
 # it would make sense to have several years worth of datapoints for the training period.  This set below can be used for all parameters.
 train <- head(owt_df02_gb04_mrgd, round(NROW(owt_df02_gb04_mrgd) * 0.6))
 h <- length(owt_df02_gb04_mrgd) - NROW(train)
 test <- tail(owt_df02_gb04_mrgd, h)
-
 ```
 
 ## Define custom function to produce scatterplots comparing multiple predictors to one target
@@ -1436,24 +1427,6 @@ uniq_proj
 uniq_depth
 ```
 
-## Run custom function on data aggregated by `date_sample` and `parameter`
-```{r, fig.height=15, fig.width=30}
-time_plt(df = owt_df02_gb04_mrgd,
-         date = "date_sample",
-         l1 = param_lst05)
-```
-
-## Run custom function on data aggregated by `date_sample`, `project`, `depth_m_bin` and `parameter`
-```{r, fig.height=15, fig.width=30}
-time_plt(df = owt_df02_gb07_mrgd,
-         date = "date_sample",
-         l1 = param_lst05,
-         l2_name = "project",
-         l2 = uniq_proj,
-         l3_name = "depth_m_bin",
-         l3 = uniq_depth)
-```
-
 ## Convert df's to `timetk` tibbles for data aggregated by `date_sample`, `project`, and `parameter`
 ```{r}
 # Citation: https://business-science.github.io/timetk/index.html
@@ -1466,7 +1439,6 @@ test_end <- ""
 # Convert PLOO data for 01/18/1999 and 01/03/2022 to `timetk` TS tibble
 owt_df02_gb09_ploo_wkly03_df01 <- owt_df02_gb09_wkly03[owt_df02_gb09_wkly03$project == "PLOO" & owt_df02_gb09_wkly03$date_sample >= train_start, ]
 owt_df02_gb09_ploo_wkly03_df02 <- owt_df02_gb09_ploo_wkly03_df01[, -c(2, 8, 11)]
-#owt_df02_gb09_ploo_wkly03_df02$date_sample <- yearweek(owt_df02_gb09_ploo_wkly03_df02$date_sample, week_start = getOption("lubridate.week.end", 1))
 
 owt_df02_gb09_ploo_wkly03_tb01 <- tibble(owt_df02_gb09_ploo_wkly03_df02)
 owt_df02_gb09_ploo_wkly03_tb02 <- pad_by_time(.data = owt_df02_gb09_ploo_wkly03_tb01,
@@ -1834,10 +1806,6 @@ print(accuracy(HW1_for))
 acf(HW1_for$residuals, lag.max=20, na.action=na.pass)
 Box.test(HW1_for$residuals, lag=20, type="Ljung-Box")
 hist(HW1_for$residuals)
-
-
-
-
 ```
 
 ```{r MODELING-CC-FORECAST-USING-ETS}
@@ -1896,9 +1864,7 @@ lr_ts_mod <- function(tb_train = NA,
                           h = h,
                           newdata = data.frame(test_ts01[, ext_pred]))
   
-  #tb_train_s1 <- subset(x = tb_train, select = c(date, param))
-  #tb_test_s1 <- subset(x = tb_test, select = c(date, param))
-  
+
   #print(lin_mod_prd)
   #print(tb_test[, param])
   print(accuracy(lin_mod_prd,
