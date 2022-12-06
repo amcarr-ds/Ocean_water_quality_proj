@@ -1,12 +1,11 @@
 # 506-OceanWater-Team1
-Working Title: Forecasting the Ocean Quality by San Diego
+Forecasting Ocean Quality within the San Diego Coastal Region
 This project is for USD’s ADS-506 Applied Time Series Analysis Course in Fall 2022
 
--- Project Status: [Complete barring reports]
+-- Project Status: [Complete]
 
 ## Installation
-You should add an instruction how this project to be used, installed, run, edited in others’ machine.
-First clone the repo onto your device, then load into R studio. 
+First clone the repo onto your device, then load into R studio. The data is stored in the "data/Ocean Water" subfolder while the code (.rmd file) is in the "markdown" subfolder.
 
 ### Project Introduction/Objective
 The main purpose of this project is to develop time series models to forecast various parameters for ocean water quality. This is to allow businesses and communities to know if additional measures to keep the water clean need to be taken or if there is  a health risk to being in the water at certain times (i.e. regular spikes in entero type microbes that could cause a health crisis). 
