@@ -1,5 +1,5 @@
 ---
-title: "Appendix A - ADS506-01-FA22 - Final Project"
+title: "Appendix D - ADS506-01-FA22 - Final Project"
 author: "Team 1"
 date: "12/05/2022"
 output:
@@ -15,8 +15,8 @@ header-includes:
 always_allow_html: true
 ---
 
-## RMarkdown global setup
-```{r setup, include=FALSE}
+# RMarkdown global setup
+```{r setup, include=TRUE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
@@ -82,6 +82,7 @@ print(head(owt_df01, 7))
 describe(owt_df01)
 ```
 
+# Exploratory Data Analysis (EDA) and preprocessing, phase 1
 ## Create custom function to generate boxplots and descriptive statistics for continuous variables
 ```{r, message=FALSE, warning=FALSE, error=FALSE}
 box_comp <- function(xcol = c(),
@@ -1434,6 +1435,7 @@ uniq_proj
 uniq_depth
 ```
 
+# Preprocessing, phase 2
 ## Convert df's to `timetk` tibbles for data aggregated by `date_sample`, `project`, and `parameter`
 ```{r}
 # Citation: https://business-science.github.io/timetk/index.html
@@ -1650,7 +1652,7 @@ owt_df02_gb09_sboo_wkly02_test_tb03 <- qk_imp(df = owt_df02_gb09_sboo_wkly02_tes
 #print(head(owt_df02_gb09_sboo_wkly02_test_tb03, 10))
 ```
 
-# Modeling
+# Modeling and Evaluation
 ## Holt-Winters Modeling for all Parameters and all tables
 ```{r CC-MODELING-HOLTWINTERS-owt_df02_gb09_ploo_wkly03_train_tb03}
 # convert to time series object ts
@@ -1817,7 +1819,7 @@ plot(people.ets.AAN.pred, xlab = "Week", ylab = "Parameter Value", ylim = c(40, 
 ```
 
 ## Linear Regression Modeling
-## Create custom function to automate linear regression modeling
+### Create custom function to automate linear regression modeling
 ```{r, fig.height=15, fig.width=30}
 lr_ts_mod <- function(tb_train = NA,
                       tb_test = NA,
@@ -2947,7 +2949,7 @@ arima_entero_sboo_acc <- accuracy(arima_entero_sboo_q3_forecast,
 arima_entero_sboo_acc
 ```
 
-## ARIMA Regression Models:
+### ARIMA Regression Models:
 
 ### ARIMA Regression 1-PLOO: Using all but SUSO and OG from PLOO
 Use: chlorophyll, fecal, ph, salinity, temp, density, DO, XMS) to get: Entero
@@ -3066,7 +3068,7 @@ arimaReg_entero_sboo_acc <- accuracy(sboo_arimaReg_forecast,
 arimaReg_entero_sboo_acc
 ```
 
-## ARIMA models of the top coeffecients of the regression models
+### ARIMA models of the top coeffecients of the regression models
 
 ### ARIMA at PLOO
 ```{r}
