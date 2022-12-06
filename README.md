@@ -1,5 +1,6 @@
 # 506-OceanWater-Team1
 Forecasting Ocean Quality within the San Diego Coastal Region
+
 This project is for USD’s ADS-506 Applied Time Series Analysis Course in Fall 2022
 
 -- Project Status: [Complete]
